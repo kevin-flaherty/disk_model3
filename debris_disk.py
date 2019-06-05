@@ -1,6 +1,6 @@
-# Define the Disk class. This class of objects can be used to create a disk structure. Given 
-#parameters defining the disk, it calculates the dust density structure using a simple radial 
-#power-law relation and defines the grid used for radiative transfer. This object can then be 
+# Define the Disk class. This class of objects can be used to create a disk structure. Given
+#parameters defining the disk, it calculates the dust density structure using a simple radial
+#power-law relation and defines the grid used for radiative transfer. This object can then be
 #fed into the modelling code which does the radiative transfer given this structure.
 
 #two methods for creating an instance of this class
@@ -25,11 +25,11 @@ spec = [
     ('value', int32),               # a simple scalar field
     ('array', float32[:]),          # an array field
 ]
-    
+
 class Disk:
-    
+
     'Common class for circumstellar disk structure'
-    
+
     #Define useful constants
     AU      = const.au.cgs.value       # - astronomical unit (cm)
     Rsun    = const.R_sun.cgs.value    # - radius of the sun (cm)
@@ -57,10 +57,10 @@ class Disk:
     H2tog   = 0.8                      # - H2 abundance fraction (H2:gas)
     Tco     = 19.                      # - freeze out
     sigphot = 0.79*sc                  # - photo-dissociation column
-    
-    
+
+
     def __init__(self,
-        params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3, [.79,1000],[10.,1000], -1, 500, 500, 0.09, 0.1],
+        params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,[.79,1000],[10.,1000], -1, 500, 500, 0.09, 0.1],
         obs=[180,131,300,170],
         rtg=True,
         vcs=True,sh_relation='linear',line='co',ring=None, annulus=None):
@@ -88,26 +88,26 @@ class Disk:
         self.Xco      = params[8]               # - CO gas fraction
         self.vturb    = params[9]*Disk.kms      # - turbulence velocity
         self.zq0      = params[10]              # - Zq, in AU, at 150 AU
-        self.sigbound = [params[11][0]*Disk.sc,params[11][1]*Disk.sc]          
-        
+        self.sigbound = [params[11][0]*Disk.sc,params[11][1]*Disk.sc]
+
         # - upper and lower column density boundaries
         if len(params[12]) == 2:
-            # - inner and outer abundance boundaries 
+            # - inner and outer abundance boundaries
             self.Rabund = [params[12][0]*Disk.AU,params[12][1]*Disk.AU]
         else:
             # - inner/outer ring, width of inner/outer ring
             self.Rabund=[params[12][0]*Disk.AU,params[12][1]*Disk.AU,params[12][2]*Disk.AU,params[12][3]*Disk.AU,params[12][4]*Disk.AU,params[12][5]*Disk.AU]
-        
-        self.handed  = params[13]         # - NEED COMMENT HERE 
+
+        self.handed  = params[13]         # - NEED COMMENT HERE
         self.costhet = np.cos(self.thet)  # - cos(i)
         self.sinthet = np.sin(self.thet)  # - sin(i)
-            
+
         #set number of model grid elements in radial and vertical direction
         self.r_gridsize = params[14]
         self.z_gridsize = params[15]
         self.Lstar      = params[16]
         self.sh_param   = params[17]
-        
+
         if self.ring is not None:
             self.Rring       = self.ring[0]*Disk.AU # location of the ring
             self.Wring       = self.ring[1]*Disk.AU # width of ring
@@ -117,34 +117,34 @@ class Disk:
             self.annulus_Rin = self.annulus[0]*Disk.AU # location of the dust annulus
             self.annulus_Rout = self.annulus[1]*Disk.AU #width of annulus
             self.annulus_mass = self.annulus[2]*Disk.Mearth #total added mass
-        
+
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
         self.nr   = obs[0]
         self.nphi = obs[1]
         self.nz   = obs[2]
         self.zmax = obs[3]*Disk.AU
-                
+
 
     def set_structure(self, sh_relation):
         '''Calculate the disk density and temperature structure given the specified parameters'''
         # Define the desired regular cylindrical (r,z) grid
         nrc  = self.r_gridsize  # - number of unique r points
         nzc  = self.z_gridsize  # - number of unique z points
-        
+
         rmin = self.Rin if self.annulus is None \
             else np.min([self.Rin, self.annulus_Rin]) # - minimum r [AU]
         rmax = self.Rout if self.annulus is None  \
-            else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]      
+            else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]
         zmin = .1*Disk.AU       # - minimum z [AU] *****0.1?
-        
+
         # import numpy as np
         # import pandas as pd
         # x = pd.Series(np.logspace(np.log10(10),np.log10(42),1000))#.loc[lambda x: (x > 14.9) & (x < 15)]
         # r.diff()
         # r = pd.Series(np.linspace(10,42,500)).loc[lambda x: (x > 15) & (x < 15.5)]
         # x.diff()
-        
+
         rf   = np.logspace(np.log10(rmin),np.log10(rmax),nrc)
         zf   = np.logspace(np.log10(zmin),np.log10(self.zmax),nzc)
 
@@ -162,7 +162,7 @@ class Disk:
 
         #define temperature structure
         tempg = (self.Lstar * self.Lsun / (16. * np.pi * rcf**2 * self.sigmaB))**0.25
-        
+
         #calculate the scale height of the disk
         self.set_scale_height(sh_relation, rcf)
 
@@ -173,31 +173,31 @@ class Disk:
         self.sigmaD = np.full(rcf.shape, 1e-60)
         w = ((rcf > self.Rin) & (rcf < self.Rout))
         self.sigmaD[w] = dsigma_crit * (rcf[w]**self.pp)
-        
+
         #adjust surface density to account for annulus
         if self.annulus is not None:
             w = ((rcf > self.annulus_Rin) & (rcf < self.annulus_Rout))
             annulus_sigma = self.annulus_mass / \
                 (np.pi * (self.annulus_Rout**2 - self.annulus_Rin**2))
             self.sigmaD[w] += annulus_sigma
-            
+
         #calculate the dust volume density structure as a function of radius
         rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (zcf / self.H)**2)
-        
+
         # Check for NANs
         ii = np.isnan(rhoD)
         if ii.sum() > 0:
             rhoD[ii] = 1e-60
-            print 'Beware: removed NaNs from dust density (#%s)' % ii.sum()
+            print('Beware: removed NaNs from dust density (#%s)' % ii.sum())
         ii = np.isnan(tempg)
         if ii.sum() > 0:
             tempg[ii] = 2.73
-            print 'Beware: removed NaNs from temperature (#%s)' % ii.sum()
+            print('Beware: removed NaNs from temperature (#%s)' % ii.sum())
 
         # find photodissociation boundary layer from top
         sig_col = np.zeros((nrc,nzc)) #Cumulative mass surface density along vertical lines starting at z=170AU
-        self.sig_col = sig_col        #save it for later        
-        
+        self.sig_col = sig_col        #save it for later
+
         self.rf          = rf
         self.nrc         = nrc
         self.zf          = zf
@@ -206,16 +206,16 @@ class Disk:
         self.dsigma_crit = dsigma_crit
         self.rhoD        = rhoD
         self.rhoD0       = rhoD
-        
-        
+
+
     def set_rt_grid(self,vcs=True):
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
         rmin = self.Rin if self.annulus is None \
             else np.min([self.Rin, self.annulus_Rin]) # - minimum r [AU]
         rmax = self.Rout if self.annulus is None  \
-            else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]      
-        
+            else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]
+
         Smin = 1*Disk.AU                 # offset from zero to log scale
         if self.thet > np.arctan(rmax/self.zmax):
             Smax = 2*rmax/self.sinthet
@@ -224,13 +224,13 @@ class Disk:
         Smid = Smax/2.                    # halfway along los
         ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
 
-        R   = np.linspace(0,rmax,self.nr) 
+        R   = np.linspace(0,rmax,self.nr)
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
         foo = np.floor(self.nz/2)
-        
+
         S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin
-        
-        
+
+
         # Basically copy S_old, with length nz,  into each column of a nphi*nr*nz matrix
         S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
 
@@ -251,17 +251,17 @@ class Disk:
             # if annulus extends beyond disk
             if self.Rout < self.annulus_Rin:
                 notdisk = notdisk | ((tr > self.Rout) & (tr < self.annulus_Rin))
-                
+
             #exclude elements between outer annulus edge and inner disk edge
             # if annulus extends interior to disk
             if self.Rin > self.annulus_Rout:
                 notdisk = notdisk | ((tr > self.annulus_Rout) & (tr < self.Rin))
-                
+
         xydisk  =  tr[:,:,0] <= rmax+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
-        
+
 
         # interpolate to calculate disk temperature and densities
-        #print 'interpolating onto radiative transfer grid'
+        #print('interpolating onto radiative transfer grid')
         #need to interpolate tempg from the 2-d rcf,zcf onto 3-d tr
         xind     = np.interp(tr.flatten(),self.rf,list(range(self.nrc)))             #rf,nrc
         yind     = np.interp(np.abs(tdiskZ).flatten(),self.zf,list(range(self.nzc))) #zf,nzc
@@ -300,7 +300,7 @@ class Disk:
         else:
             tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
 
-        
+
         # store disk
         self.X = X
         self.Y = Y
@@ -333,10 +333,10 @@ class Disk:
         else: #assume line.lower()=='co'
             #temperature and turbulence broadening
             tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*m_mol)*tT+self.vturb**2)
-            
+
 
         self.dBV=tdBV
-    
+
     def add_dust_gap(self,Rin,Rout):
         '''Add a gap in the dust with a specified inner and outer radius to the disk,
            and re-normalize the remaining dust density structure to account for the
@@ -349,7 +349,7 @@ class Disk:
         #re-normalize disk density to account for missing gap mas
         norm_factor = self.Mdust / remaining_mass
         self.rhoD = self.rhoD * norm_factor
-        
+
         #Finally, zero out density where the gap is located
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
         self.rhoD[w] = 0.
@@ -368,7 +368,7 @@ class Disk:
         #calculate the normalization factor, added_mass / mass of the dust
         norm_factor = added_mass / initial_mass
 
-        #multiply the dust within the specified radius 
+        #multiply the dust within the specified radius
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
 
         #re-calculate the dust volume density structure as a function ring radius
@@ -377,11 +377,11 @@ class Disk:
 
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=True):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
-        
+
         if initialize:
             self.dtg = 0*self.r
             self.kap = 2.3
-        
+
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
@@ -411,7 +411,7 @@ class Disk:
             self.Xmol[zap]=1e-18
         if not initialize:
             self.rhoG = self.rhoH2*self.Xmol
-            
+
     def set_scale_height(self, sh_relation, rcf):
         'set scale height parameter using given relationship'
 
@@ -421,7 +421,7 @@ class Disk:
             length = np.ones(rcf.shape) * Disk.AU
             self.H = self.sh_param * length
         else:
-            print 'WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.'
+            print('WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.')
 
     def density(self):
         'Return the density structure'

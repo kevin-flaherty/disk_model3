@@ -14,16 +14,16 @@ import time
 
 class Disk:
     'Common class for circumstellar disk structure'
-    
+
     #Define useful constants
-    
+
     AU = const.au.cgs.value          # - astronomical unit (cm)
     Rsun = const.R_sun.cgs.value     # - radius of the sun (cm)
     c = const.c.cgs.value            # - speed of light (cm/s)
     h = const.h.cgs.value            # - Planck's constant (erg/s)
     kB = const.k_B.cgs.value         # - Boltzmann's constant (erg/K)
     pc = const.pc.cgs.value          # - parsec (cm)
-    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg cm^-2 s^-1 K^-4) #only difference in defined constants 
+    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg cm^-2 s^-1 K^-4) #only difference in defined constants
     Jy = 1.e23                       # - cgs flux density (Janskys)
     Lsun = const.L_sun.cgs.value     # - luminosity of the sun (ergs)
     Mearth = const.M_earth.cgs.value # - mass of the earth (g)
@@ -43,7 +43,7 @@ class Disk:
     H2tog = 0.8                      # - H2 abundance fraction (H2:gas)
     Tco = 19.                        # - freeze out
     sigphot = 0.79*sc                # - photo-dissociation column
-    
+
     def __init__(self,params=[-0.5,9e-6,1.,30.,140.,1500.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0.342,46,[.76,1000],[10,800],1,0.1],obs=[180,131,300,170],rtg=True,vcs=True,line='co',sh_relation='linear',ring=None):
 
         tb = time.clock()
@@ -55,11 +55,11 @@ class Disk:
         if rtg:
             self.set_rt_grid()
             self.set_line(line=line,vcs=vcs)
-            
+
         'need to set a parameter for scale height here'
 
         tf = time.clock()
-        print "disk init took {t} seconds".format(t=(tf-tb))
+        print("disk init took {t} seconds".format(t=(tf-tb)))
 
     def set_params(self,params):
         'Set the disk structure parameters'
@@ -67,7 +67,7 @@ class Disk:
         self.Mdust = params[1]*Disk.Msun    # - dust mass
         self.pp = params[2]                 # - surface density index
         self.Ain  = params[3]*Disk.AU       # - inner edge in cm
-        self.Aout = params[4]*Disk.AU       # - outer edge in cm     
+        self.Aout = params[4]*Disk.AU       # - outer edge in cm
         self.Rc = params[5]*Disk.AU         # - critical radius in cm
         self.thet = math.radians(params[6]) # - convert inclination to radians
         self.Mstar = params[7]*Disk.Msun    # - convert mass of star to g
@@ -76,7 +76,7 @@ class Disk:
         self.zq0 = params[10]               # - Zq, in AU, at 150 AU
         self.tmid0 = params[11]             # - Tmid at 150 AU
         self.tatm0 = params[12]             # - Tatm at 150 AU
-        self.handed = params[13]            # 
+        self.handed = params[13]            #
         self.ecc = params[14]               # - eccentricity of disk
         self.aop = math.radians(params[15]) # - angle between los and perapsis convert to radians
         self.sigbound = [params[16][0]*Disk.sc,params[16][1]*Disk.sc] #-upper and lower column density boundaries
@@ -96,14 +96,14 @@ class Disk:
         self.Lstar      = params[18]  # this is the coefficient for the luminosity of the star used in the tempg line
         self.sh_param   = params[19]
         self.kap = 2.3
-        
+
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transfer grid, along with the maximum height of the grid.'
         self.nr = obs[0]
         self.nphi = obs[1]
         self.nz = obs[2]
         self.zmax = obs[3]*Disk.AU
-           
+
 
     def set_structure(self, sh_relation):
         #tst=time.clock()
@@ -139,10 +139,10 @@ class Disk:
         fcf = (pcf - self.aop) % (2*np.pi)
         #acf = (np.outer(af,idf))[:,:,np.newaxis]*idz
         rcf=rf[:,:,np.newaxis]*idz
-        #print "coords init {t}".format(t=time.clock()-tst)
-        
+        #print("coords init {t}".format(t=time.clock()-tst))
+
         if 0:
-            print 'plotting'
+            print('plotting')
             plt.plot((rcf*np.cos(fcf)).flatten(),(rcf*np.sin(fcf)).flatten())
             plt.show()
 
@@ -161,10 +161,10 @@ class Disk:
         grid = {'nac':nac,'nfc':nfc,'nzc':nzc,'rcf':rcf,'amax':amax,'zcf':zcf}#'ff':ff,'af':af,
         self.grid=grid
 
-        #print "grid {t}".format(t=time.clock()-tst)
+        #print("grid {t}".format(t=time.clock()-tst))
         #define temperature structure
         # use Dartois (03) type II temperature structure
-        ###### expanding to 3D should not affect this ###### 
+        ###### expanding to 3D should not affect this ######
         delta = 1.                # shape parameter
         rcf150=rcf/(150.*Disk.AU)
         rcf150q=rcf150**self.qq
@@ -177,11 +177,11 @@ class Disk:
         tempg[ii] = tatm[ii]
         #Type I structure
 #        tempg = tmid*np.exp(np.log(tatm/tmid)*zcf/zq)
-        ###### this step is slow!!! ###### 
-        #print "temp struct {t}".format(t=time.clock()-tst)
-        
+        ###### this step is slow!!! ######
+        #print("temp struct {t}".format(t=time.clock()-tst))
+
         "Lines 183 - 207 are where you change the density structure. This needs to be changed from gas to dust."
-        
+
         # Calculate vertical density structure
         # nolonger use exponential tail
         ## Circular:
@@ -195,13 +195,13 @@ class Disk:
         #siggas = (self.McoG*np.sqrt(1.-e*e))/((rp1-rm1)*np.pi*(1.+e*np.cos(fcf[:,:,0]))*np.power(acf[:,:,0],self.pp+1.)*asum)
         #siggas[0,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[1,:]-rf[0,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[0]*idf,self.pp+1.)*asum)
         #siggas[nac-1,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[nac-1,:]-rf[nac-2,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[nac-1]*idf,self.pp+1.)*asum)
-        Sc = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Aout**(2. + self.pp) - self.Ain**(2. + self.pp))) 
+        Sc = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Aout**(2. + self.pp) - self.Ain**(2. + self.pp)))
         siggas_r = Sc * (rcf[:,:,0] ** self.pp)
         #Sc = self.McoG*(2.-self.pp)/((amax**(2-self.pp)-amin**(2-self.pp)))
         #siggas_r = Sc*acf[:,:,0]**(-1*self.pp)
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
         siggas= ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
-     
+
         ## Add an extra ring
         if self.ring is not None:
             w = np.abs(rcf-self.Rring)<self.Wring/2.
@@ -210,10 +210,10 @@ class Disk:
 
         ##calculate the scale height of the disk
         self.set_scale_height(sh_relation, rcf)
-                
-        #print "surface density {t}".format(t=time.clock()-tst)
+
+        #print("surface density {t}".format(t=time.clock()-tst))
         if 0:
-            print 'plotting'
+            print('plotting')
             #plt.pcolor(rcf[:,:,0]*np.cos(fcf[:,:,0]),rcf[:,:,0]*np.sin(fcf[:,:,0]),(siggas[:,:]))
             plt.loglog(rcf[:,0,0]/self.AU,siggas[:,0],color='k',lw=2)
             plt.loglog(rcf[:,nfc/2,0]/self.AU,siggas[:,nfc/2],color='r',lw=2)
@@ -223,7 +223,7 @@ class Disk:
 #            plt.loglog(rcf[:,nfc/2,0]/self.AU,siggas_r[:,nfc/2],ls=':',lw=2,color='r')
 #            plt.colorbar()
             plt.show()
-            
+
         if 1:
             # check that siggas adds up to Mdisk #
             df=ff[1]-ff[0]
@@ -232,8 +232,8 @@ class Disk:
             dA[nac-1,:]=(rf[nac-1,:]-rf[nac-2,:])*rf[nac-1,:]*df
             mcheck=(siggas*dA)
             mcheck=mcheck.sum()
-            #print "sig mass check (should be 1)"
-            #print mcheck/self.Mdust
+            #print("sig mass check (should be 1)")
+            #print(mcheck/self.Mdust)
 
             #dsdth = (acf*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf)+e*e))/(1+e*np.cos(fcf))**2
             dr = af-np.roll(af,1)
@@ -242,25 +242,25 @@ class Disk:
             dm = (siggas*dr*acf[:,:,0]*df)
             #dm = (linrho*dA*dsdth*2*np.pi)
             #dm[0] = 0
-            print 'second sig mass check ',dm.sum()/self.Mdust
-        
-     
+            print('second sig mass check ',dm.sum()/self.Mdust)
+
+
         rho0 = ((siggas[:,:,np.newaxis]*idz)/(self.H*np.sqrt(np.pi))) * np.exp(-1*(zcf/self.H)**2)
-        
+
         self.rho0=rho0
-        
+
         deltaz = np.roll(zcf,-1,axis=2)-zcf
         sigmar = np.zeros(500)
-        
-        print deltaz[100,0,:]
-        
+
+        print(deltaz[100,0,:])
+
         for i in range(0,500):
             sigmar[i] = np.sum(rho0[i,0,:]*deltaz[i,0,:])
-        
-      
+
+
         plt.plot(rcf[:,0,0],sigmar)
         plt.show()
-        
+
         if 0:
             #check if rho0 adds up to Mdisk
             df=2*np.pi/self.nphi
@@ -277,17 +277,17 @@ class Disk:
             dV=rcf*df*dr*dz
             mcheck=self.rho0*dV
             mcheck=mcheck.sum()
-            print "rho mass check (should be 1/2 as z is only one half of disk)"
-            print mcheck/self.Mdust
+            print("rho mass check (should be 1/2 as z is only one half of disk)")
+            print(mcheck/self.Mdust)
 
-        #print "hydro done {t}".format(t=time.clock()-tst)
+        #print("hydro done {t}".format(t=time.clock()-tst))
         #Calculate radial pressure differential
         ### nolonger use pressure term ###
         #Pgas = Disk.kB/Disk.m0*self.rho0*tempg
         #dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
-        #print dPdr[:5,0,0],dPdr[200:205,0,500]
+        #print(dPdr[:5,0,0],dPdr[200:205,0,500])
         #dPdr = 0#(np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
-        
+
 
 
         #Calculate velocity field
@@ -295,14 +295,14 @@ class Disk:
         #w = np.isnan(Omg)
         #if w.sum()>0:
         #    Omg[w] = np.sqrt((Disk.G*self.Mstar/(rcf[w]**2+zcf[w]**2)**1.5))
-        
+
         #https://pdfs.semanticscholar.org/75d1/c8533025d0a7c42d64a7fef87b0d96aba47e.pdf
         #Lovis & Fischer 2010, Exoplanets edited by S. Seager (eq 11 assuming m2>>m1)
         self.vel = np.sqrt(Disk.G*self.Mstar/(acf*(1-self.ecc**2.)))*(np.cos(self.aop+fcf)+self.ecc*self.cosaop)
 
         ###### Major change: vel is linear not angular ######
         #Omk = np.sqrt(Disk.G*self.Mstar/acf**3.)#/rcf
-        #velrot = np.zeros((3,nac,nfc,nzc)) 
+        #velrot = np.zeros((3,nac,nfc,nzc))
         #x,y velocities with refrence to semimajor axis (f)
         #velx = (-1.*Omk*acf*np.sin(fcf))/np.sqrt(1.-self.ecc**2)
         #vely = (Omk*acf*(self.ecc+np.cos(fcf)))/np.sqrt(1.-self.ecc**2)
@@ -327,9 +327,9 @@ class Disk:
             #plt.plot(af/Disk.AU,velrot2[:,nfc/2,0]/1e5,color='r',ls='--')
 
 
-        #print "Vel {t}".format(t=time.clock()-tst)
+        #print("Vel {t}".format(t=time.clock()-tst))
         if 0:
-            print 'plotting velocity'
+            print('plotting velocity')
             plt.clf()
             '''
             plt.plot(fcf[0,:,0],velrot[0,0,:,0],label='Vx')
@@ -355,7 +355,7 @@ class Disk:
             plt.pcolor(rcf[:,:,0]*np.cos(pcf[:,:,0]),rcf[:,:,0]*np.sin(pcf[:,:,0]),np.log10(np.sqrt(velrot[0,:,:,0]**2+velrot[1,:,:,0]**2)))
             plt.colorbar()
             plt.show()
-        
+
         # Check for NANs
         ### nolonger use Omg ###
         #ii = np.isnan(Omg)
@@ -363,13 +363,13 @@ class Disk:
         ii = np.isnan(self.rho0)
         if ii.sum() > 0:
             self.rho0[ii] = 1e-60
-            print 'Beware: removed NaNs from density (#%s)' % ii.sum()
+            print('Beware: removed NaNs from density (#%s)' % ii.sum())
         ii = np.isnan(tempg)
         if ii.sum() > 0:
             tempg[ii] = 2.73
-            print 'Beware: removed NaNs from temperature (#%s)' % ii.sum()
+            print('Beware: removed NaNs from temperature (#%s)' % ii.sum())
 
-        #print "nan chekc {t}".format(t=time.clock()-tst)
+        #print("nan chekc {t}".format(t=time.clock()-tst))
         # find photodissociation boundary layer from top
         zpht_up = np.zeros((nac,nfc))
         zpht_low = np.zeros((nac,nfc))
@@ -403,10 +403,10 @@ class Disk:
                 #    zice[ia,jf] = zmin
         self.sig_col = sig_col
         #szpht = zpht
-        #print "Zpht {t} seconds".format(t=(time.clock()-tst))
-                    
+        #print("Zpht {t} seconds".format(t=(time.clock()-tst)))
+
         '''
-        
+
         szpht = zpht
         #zpht = scipy.signal.medfilt(zpht,kernel_size=7) #smooth it
 
@@ -433,10 +433,10 @@ class Disk:
         self.zpht_low = zpht_low
         self.pcf = pcf  #only used for plotting can remove after testing
         self.rcf = rcf  #only used for plotting can remove after testing
-        
-        
-        
-        
+
+
+
+
         if 0:
             plt.figure()
             cs = plt.contour(rcf/Disk.AU,zcf/Disk.AU,np.log10(self.rho0/(Disk.mu*Disk.mh)),np.arange(0,10,1))
@@ -470,11 +470,11 @@ class Disk:
         R = np.linspace(0,self.Aout*(1+self.ecc),self.nr) #******* not on cluster*** #
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
         foo = np.floor(self.nz/2)
-        
-        #S_old = np.concatenate([Smid+Smin-10**(np.log10(Smid)+np.log10(Smin/Smid)*np.arange(foo)/(foo)),Smid-Smin+10**(np.log10(Smin)+np.log10(Smid/Smin)*np.arange(foo)/(foo))]) 
+
+        #S_old = np.concatenate([Smid+Smin-10**(np.log10(Smid)+np.log10(Smin/Smid)*np.arange(foo)/(foo)),Smid-Smin+10**(np.log10(Smin)+np.log10(Smid/Smin)*np.arange(foo)/(foo))])
         S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin #*** not on cluster**
-        
-        #print "grid {t}".format(t=time.clock()-tst)
+
+        #print("grid {t}".format(t=time.clock()-tst))
         # Basically copy S_old, with length nz,  into each column of a nphi*nr*nz matrix
         S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
 
@@ -494,15 +494,15 @@ class Disk:
         xydisk =  tr[:,:,0] <= self.Aout*(1.+self.ecc)+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
         self.r = tr
 
-        
-        
 
-        #print "new grid {t}".format(t=time.clock()-tst)
+
+
+        #print("new grid {t}".format(t=time.clock()-tst))
         # Here include section that redefines S along the line of sight
         # (for now just use the old grid)
 
         # interpolate to calculate disk temperature and densities
-        #print 'interpolating onto radiative transfer grid'
+        #print('interpolating onto radiative transfer grid')
         #need to interpolate tempg from the 2-d rcf,zcf onto 3-d tr
         # x is xy plane, y is z axis
         ###### rf is 2d, zf is still 1d ######
@@ -512,9 +512,9 @@ class Disk:
         zind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         phiind = np.interp(tphi.flatten(),self.pf,range(self.nphi))
         aind = np.interp((tr.flatten()*(1+self.ecc*np.cos(tphi.flatten()-self.aop)))/(1.-self.ecc**2),self.af,range(self.nac),right=self.nac)
-        
-        
-        #print "index interp {t}".format(t=time.clock()-tst)
+
+
+        #print("index interp {t}".format(t=time.clock()-tst))
         ###### fixed T,Omg,rhoG still need to work on zpht ######
         tT = ndimage.map_coordinates(self.tempg,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         #Omgx = ndimage.map_coordinates(self.Omg0[0],[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgs
@@ -527,7 +527,7 @@ class Disk:
         tsig_col = ndimage.map_coordinates(self.sig_col,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
         zpht_up = ndimage.map_coordinates(self.zpht_up,[[aind],[phiind]],order=1).reshape(self.nphi,self.nr,self.nz) #tr,rf,zpht
         zpht_low = ndimage.map_coordinates(self.zpht_low,[[aind],[phiind]],order=1).reshape(self.nphi,self.nr,self.nz) #tr,rf,zpht
-        tT[notdisk] = 0 
+        tT[notdisk] = 0
         self.sig_col = tsig_col
 
         self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
@@ -539,8 +539,8 @@ class Disk:
 
 
 
-        #print "image interp {t}".format(t=time.clock()-tst)
-        
+        #print("image interp {t}".format(t=time.clock()-tst))
+
         # photo-dissociation
         #zap = (np.abs(tdiskZ) > zpht_up)
         #if zap.sum() > 0:
@@ -562,20 +562,20 @@ class Disk:
             #trhoG[zap] = 1e-8*trhoG[zap]
 
         trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
-        trhoG = trhoH2*self.Xmol 
+        trhoG = trhoH2*self.Xmol
         trhoH2[notdisk] = 0
         trhoG[notdisk] = 0
         self.rhoH2 = trhoH2
 
-        #print "zap {t}".format(t=time.clock()-tst)
+        #print("zap {t}".format(t=time.clock()-tst))
         #temperature and turbulence broadening
         #moved this to the set_line method
         #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
         #tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT)) #vturb proportional to cs
 
-        
+
         if 0:
-            print 'plotting'
+            print('plotting')
             plt.figure(1)
             plt.subplot(211)
             plt.pcolor(np.log10(tr[0,:,:]),tdiskZ[0,:,:],np.log10(trhoG[0,:,:]))
@@ -640,7 +640,7 @@ class Disk:
         #re-normalize disk density to account for missing gap mas
         norm_factor = self.Mdust / remaining_mass
         self.rho0 = self.rho0 * norm_factor
-        
+
         #Finally, zero out density where the gap is located
         w = (self.r>(Ain*Disk.AU)) & (self.r<(Aout*Disk.AU))
         self.rho0[w] = 0.
@@ -659,7 +659,7 @@ class Disk:
         #calculate the normalization factor, added_mass / mass of the dust
         norm_factor = added_mass / initial_mass
 
-        #multiply the dust within the specified radius 
+        #multiply the dust within the specified radius
         w = (self.r>(Ain*Disk.AU)) & (self.r<(Aout*Disk.AU))
 
         #re-calculate the dust volume density structure as a function ring radius
@@ -668,11 +668,11 @@ class Disk:
 
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=False):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
-        
+
         if initialize:
             self.dtg = 0*self.r
             self.kap = 2.3
-        
+
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
@@ -705,8 +705,8 @@ class Disk:
             self.Xmol[zap]=1e-18
         if not initialize:
             self.rhoG = self.rhoH2*self.Xmol
-        
-       
+
+
 
     def calc_hydrostatic(self,tempg,siggas,grid):
         nac = grid['nac']
@@ -722,7 +722,7 @@ class Disk:
 
         #compute gravo-thermal constant
         grvc = Disk.G*self.Mstar*Disk.m0/Disk.kB
-        
+
         #t1 = time.clock()
         #differential equation for vertical density profile
         dlnT = (np.log(tempg)-np.roll(np.log(tempg),1,axis=2))/dz
@@ -737,45 +737,45 @@ class Disk:
         #normalize the density profile (note: this is just half the sigma value!)
         rho0 = 0.5*((sigint/np.trapz(np.exp(lnp),zcf,axis=2))[:,:,np.newaxis]*np.ones(nzc))*np.exp(lnp)
         #t2=time.clock()
-        #print "hydrostatic loop took {t} seconds".format(t=(t2-t1))
+        #print("hydrostatic loop took {t} seconds".format(t=(t2-t1)))
 
-        #print 'Doing hydrostatic equilibrium'
+        #print('Doing hydrostatic equilibrium')
         #t1 = time.clock()
         #for ia in range(nac):
         #    for jf in range(nfc):
-        #        
+        #
         #        #extract the T(z) profile at a given radius
         #        T = tempg[ia,jf]
-        #                
+        #
         #        z=zcf[ia,jf]
         #        #differential equation for vertical density profile
         #        dlnT = (np.log(T)-np.roll(np.log(T),1))/dz[ia,jf]
         #        dlnp = -1*grvc*z/(T*(rcf[ia,jf]**2.+z**2.)**1.5)-dlnT
         #        dlnp[0] = -1*grvc*z[0]/(T[0]*(rcf[ia,jf,0]**2.+z[0]**2.)**1.5)
-        #        
+        #
         #        #numerical integration to get vertical density profile
         #        foo = dz[ia,jf]*(dlnp+np.roll(dlnp,1))/2.
         #        foo[0] = 0.
         #        lnp = foo.cumsum()
         #
         #        #normalize the density profile (note: this is just half the sigma value!)
-        #        #print lnp.shape,grvc.shape,z.shape,T.shape,rcf[ia,jf].shape,dlnT.shape
+        #        #print(lnp.shape,grvc.shape,z.shape,T.shape,rcf[ia,jf].shape,dlnT.shape)
         #        dens = 0.5*sigint[ia,jf]*np.exp(lnp)/np.trapz(np.exp(lnp),z)
         #        rho0[ia,jf,:] = dens
         #        #if ir == 200:
         #        #    plt.plot(z/Disk.AU,dlnT)
         #        #    plt.plot(z/Disk.AU,dlnp)
         #t2=time.clock()
-        #print "hydrostatic loop took {t} seconds".format(t=(t2-t1))
+        #print("hydrostatic loop took {t} seconds".format(t=(t2-t1)))
 
         self.rho0=rho0
-        #print Disk.G,self.Mstar,Disk.m0,Disk.kB
+        #print(Disk.G,self.Mstar,Disk.m0,Disk.kB)
         if 0:
-            print 'plotting'
+            print('plotting')
             plt.pcolor(rcf[:,0,np.newaxis]*np.ones(nzc),zcf[:,0,:],np.log10(rho0[:,0,:]))
             plt.colorbar()
             plt.show()
-            
+
     def set_scale_height(self, sh_relation, rcf):
         'set scale height parameter using given relationship'
 
@@ -785,7 +785,7 @@ class Disk:
             length = np.ones(len(rcf)) * Disk.AU
             self.H = self.sh_param * length
         else:
-            print 'WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.'
+            print('WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.')
 
 
     def density(self):
@@ -881,17 +881,13 @@ class Disk:
         if verbose:
             H100 = np.interp(100*Disk.AU,rf,H)
             psi = (np.polyfit(np.log10(rf),np.log10(H),1))[0]
-            #print H100/Disk.AU
-            #print psi
-            print 'H100 (AU): {:.3f}'.format(H100/Disk.AU)
-            print 'power law: {:.3f}'.format(psi)
+            #print(H100/Disk.AU)
+            #print(psi)
+            print('H100 (AU): {:.3f}'.format(H100/Disk.AU))
+            print('power law: {:.3f}'.format(psi))
 
         return H
-    
-    def graph_t(self):        
+
+    def graph_t(self):
         plt.loglog(self.rcf,self.tempg)
         plt.show()
-        
-        
-    
-    

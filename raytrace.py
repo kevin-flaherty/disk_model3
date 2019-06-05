@@ -1,3 +1,4 @@
+#takes 182 seconds under python 3.7, while it took 188 seconds under python 2.7
 
 from scipy import ndimage
 from scipy import sign
@@ -46,7 +47,7 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     nu0 = obs[1]*GHz
     Zmax = obs[5]*AU
     veloc = obs[6]*kms
-    
+
 
     # - disk parameters
     thet = disk.thet    # - convert inclination into radians
@@ -68,7 +69,7 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     BBF1 = 2.*h/(c**2)             # - prefactor for BB function
     BBF2 = h/kB                    # - exponent prefactor for BB function
     SignuF1 = s0*c/(nu0*np.sqrt(np.pi)) # - absorbing cross section prefactor
-    
+
     # - Calculate source function and absorbing coefficient
     try:
         disk.ecc
@@ -85,24 +86,24 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
         vwind = np.cos(thet)*0.0*disk.cs*sign(disk.Z)
         dV += vwind
         #height = disk.calcH(verbose=False)
-        #print height.shape,disk.cs.shape,disk.Z.shape
+        #print(height.shape,disk.cs.shape,disk.Z.shape)
 
     Signu = SignuF1*np.exp(-dV**2/disk.dBV**2)/disk.dBV*(1.-np.exp(-(BBF2*nu)/disk.T))   # - absorbing cross section
-    
-    
+
+
     Knu = tnl*Signu #+ kap*(.01+1.)*disk.rhoG   # - absorbing coefficient
     if includeDust and disk.rhoD is not None:
         Knu_dust = disk.kap*disk.rhoD      # - dust absorbing coefficient
     else:
         Knu_dust = 0*Knu
     Knu+=Knu_dust
-    
+
     Snu = BBF1*nu**3/(np.exp((BBF2*nu)/disk.T)-1.) # - source function
     if (disk.i_notdisk.sum() > 0):
         Snu[disk.i_notdisk] = 0
         Knu[disk.i_notdisk] = 0
         Knu_dust[disk.i_notdisk] = 0
-    
+
     #ds = (S-np.roll(S,1,axis=2))/2.
     #arg = ds*(Knu + np.roll(Knu,1,axis=2))
     #arg[:,:,0]=0.
@@ -133,14 +134,14 @@ def dustmodel(disk,nu):
     kap = disk.kap                 # - dust opacity at 1.3mm per H2 mass [cm^2/g] (default=2.3)
     BBF1 = 2.*h/(c**2)             # - prefactor for BB function
     BBF2 = h/kB                    # - exponent prefactor for BB function
-        
-    
+
+
     Knu_dust = kap*disk.rhoD      # - dust absorbing coefficient
     Snu = BBF1*nu**3/(np.exp((BBF2*nu)/disk.T)-1.) # - source function
     if (disk.i_notdisk.sum() > 0):
         Knu_dust[disk.i_notdisk] = 0
-    
-    
+
+
     #ds = (S-np.roll(S,1,axis=2))/2.
     #arg = ds*(Knu_dust + np.roll(Knu_dust,1,axis=2))
     #arg[:,:,0]=0.
@@ -152,7 +153,7 @@ def dustmodel(disk,nu):
 
     return trapz(arg,S,axis=2),tau
 
-def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.150,0.05],modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=None,bin=1,hanning=False):
+def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.0,0.0],modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False):
     '''Run all of the model calculations given a disk object.
     Outputs are a fits file with the model images, along with visibility files (one in miriad format and one in fits format) for this model
 
@@ -167,7 +168,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     :param chanmin:
     Minimum channel velocity in km/sec
-    
+
     :param nchans:
     Number of channels to model
 
@@ -185,7 +186,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     :param xnpix:
     Number of pixels in model image. xnpix*imres will equal the desired width of the image.
-    
+
     :param vsys:
     Systemic velocity of the star, in km/sec
 
@@ -196,7 +197,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     Disk offset from image center, in arcseconds
 
     :param modfile:
-    The base name for the model files. This code will create modfile+'.fits' (the model image) 
+    The base name for the model files. This code will create modfile+'.fits' (the model image)
 
     :param datfile:
     The base name for the data files. You need to have datfile+'.vis' (data visibilities in miriad uv format) and datfile+'.cm' (cleaned map of data) for the code to work. The visibility file is needed when running uvmodel and the cleaned map is needed for the header keywords.
@@ -219,7 +220,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     :param includeDust:
     Set to True if you want to include dust continuum in the radiative transfer calculation. This does not calculate a separate continuum image (set isgas=False for that to happen) but instead include dust radiative transfer effects in the gas calculations (e.g. dust is optically thick and obscuring some of the gas photons from the midplane)
 
-    
+
     :param extra:
     A parameter to control what extra plots/data are output. The options are 1 (figure showing the disk structure with the tau=1 surface marked with a dashed line), 2.1(a list of the heights as a function of radius between which 50% of the flux arises), 2.2(a list of temperatures as a function of radius between which 50% of the flux arises), 3.0(channel maps showing height of tau=1 surface), 3.1(channel maps showing the temperature at the tau=1 surface), 3.2 (channel maps showing the maximum optical depth)
 
@@ -228,7 +229,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     If you are comparing to data that has been binned from the native resolution, then you can include that binning in the models. e.g. If the data have been binned down by a factor of two, then set bin=2. This ensures that the model goes through similar processing as the data. Note that bin only accepts integer values.
 
     :param hanning: (default=False)
-    Set to True to perform hanning smoothing on a spectrum. Hanning smoothing is designed to reduce Gibbs ringing, which is associated with the finite time sampling that is used in the generation of a spectrum within an interferometer. Hanning smoothing is included as a running average that replaces the flux in channel i with 25% of the flux in channel i-1, 50% of the flux in channel i, and 25% of the flux in channel i+1. 
+    Set to True to perform hanning smoothing on a spectrum. Hanning smoothing is designed to reduce Gibbs ringing, which is associated with the finite time sampling that is used in the generation of a spectrum within an interferometer. Hanning smoothing is included as a running average that replaces the flux in channel i with 25% of the flux in channel i-1, 50% of the flux in channel i, and 25% of the flux in channel i+1.
 
 '''
 
@@ -241,12 +242,12 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     #If accounting for binning then decrease the channel width, and increase the number of channels
     if not isinstance(bin,int):
-        print 'bin must be an integer. Setting bin=1'
+        print('bin must be an integer. Setting bin=1')
         bin = 1
     nchans *= bin
     chanstep/=bin
     chanmin -= (bin-1)*chanstep/2.
-    
+
     if nchans==1:
         flipme=False
 
@@ -255,7 +256,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     arcsec = rad/dd     # - angular conversion factor (cm to arcsec)
     chans = chanmin+np.arange(nchans)*chanstep
     tchans = chans.astype('|S6') # - convert channel names to string
-    
+
     # extract disk structure from Disk object
     cube=np.zeros((disk.nphi,disk.nr,nchans))
     cube2=np.zeros((disk.nphi,disk.nr,disk.nz,nchans)) #tau
@@ -309,7 +310,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         w = tnl<0
         if w.sum()>0:
             tnl[w] = 0
-    
+
 
     # Do the calculation
     if flipme & (nchans % 2==0):
@@ -318,15 +319,15 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         dchans = int(nchans/2.+0.5)
     else:
         dchans = nchans
-    
-    
+
+
     for i in range(int(dchans)):
         obs[6] = chans[i]  # - vsys
         if isgas:
             Inu,Inuz,tau_dust = gasmodel(disk,params,obs,moldat,tnl,wind,includeDust=includeDust)
         #Inu_dust,tau_dust = dustmodel(disk,freq0)
             cube[:,:,i] = Inu
-        #print 'Finished channel %i / %i' % (i+1,nchans) 
+        #print('Finished channel %i / %i' % (i+1,nchans))
             cube2[:,:,:,i] = Inuz
             cube3[:,:,:,i] = tau_dust
         else:
@@ -337,10 +338,10 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         cube[:,:,dchans:] = cube[:,:,-(dchans+1):-(nchans+1):-1]
         cube2[:,:,:,dchans:] = cube2[:,:,:,-(dchans+1):-(nchans+1):-1]
         cube3[:,:,:,dchans:] = cube3[:,:,:,-(dchans+1):-(nchans+1):-1]
-    
+
     if extra == 1 :
         # plot tau=1 surface in central channel
-        plot_tau1(disk,cube2[:,:,:,nchans/2-1],cube3[:,:,:,nchans/2-1])
+        plot_tau1(disk,cube2[:,:,:,int(nchans/2-1)],cube3[:,:,:,int(nchans/2-1)])
     if (extra == 2.1) or (extra==2.2):
         for r in range(10,500,20):#20
             if extra > 2.1:
@@ -348,7 +349,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
             else:
                 flux_range(disk,cube3,r,height=True)
     if extra>2.5:
-        print '*** Creating tau=1 image ***'
+        print('*** Creating tau=1 image ***')
         ztau1tot=np.zeros((disk.nphi,disk.nr,nchans))
         for i in range(int(nchans)):
             ztau1tot[:,:,i] = findtau1(disk,cube2[:,:,:,i],cube[:,:,i],cube3[:,:,:,i],flag=extra-3)
@@ -374,15 +375,15 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         #imt2[np.isinf(imt2)] = -170*disk.AU
         imt_s=ndimage.rotate(imt2,90.+PA,reshape=False)
         pixshift=np.array([-1.,1.])*offs/(3600.*np.abs([hdrt['cdelt1'],hdrt['cdelt2']]))
-        imt_s = ndimage.shift(imt_s,(pixshift[0],pixshift[1],0),mode='nearest')        
+        imt_s = ndimage.shift(imt_s,(pixshift[0],pixshift[1],0),mode='nearest')
         hdut=fits.PrimaryHDU((imt_s/disk.AU).T,hdrt)
         #hdut=fits.PrimaryHDU((imt_s).T,hdrt)
         hdut.writeto(modfile+'p_tau1.fits',overwrite=True,output_verify='fix')
-                    
-    
+
+
     # - interpolate onto a square grid
     im = xy_interpol(cube,X*arcsec,Y*arcsec,xnpix=xnpix,imres=imres,flipme=flipme)
-        
+
     if isgas:
     # - interpolate onto velocity grid of observed star
         velo = chans+vsys
@@ -401,28 +402,28 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     if hanning:
         im2 = perform_hanning(im2)
 
-    if bin>1:
-        new_im = np.zeros((im2.shape[0],im2.shape[1],im2.shape[2]/bin))
+    if bin > 1:
+        new_im = np.zeros((im2.shape[0],im2.shape[1],im2.shape[2]//bin))
         for k in range(new_im.shape[2]):
             new_im[:,:,k] = np.mean(im2[:,:,k*bin:k*bin+bin],axis=2)
         im2 = new_im
         nchans/=bin
         chanstep*=bin
         chans = chanmin+np.arange(nchans)*chanstep
-        
-    
+
+
     # - make header
     if isgas:
         if obsv is not None:
             hdr =  write_h(nchans=len(obsv),dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys)
         else:
-            hdr =  write_h(nchans=nchans,dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys) 
+            hdr =  write_h(nchans=nchans,dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys)
     else:
         im2=im
         hdr = write_h_cont(dd=distance,xnpix=xnpix,xpixscale=xpixscale)
     # - shift and rotate model
     im_s = ndimage.rotate(im2,90.+PA,reshape=False) #***#
-    
+
     pixshift = np.array([-1.,1.])*offs/(3600.*np.abs([hdr['cdelt1'],hdr['cdelt2']]))
     im_s = ndimage.shift(im_s,(pixshift[0],pixshift[1],0),mode='nearest')*Jy*(xpixscale/rad)**2
 
@@ -430,7 +431,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     # write processed model
     hdu = fits.PrimaryHDU(im_s.T,hdr)
     hdu.writeto(modfile+'.fits',overwrite=True,output_verify='fix')
-    
+
 def perform_hanning(cube):
     '''Apply hanning smoothing over an image.'''
 
@@ -448,13 +449,13 @@ def perform_hanning(cube):
         test_cube[:,:,:,-1] = .625*cube[:,:,:,-1]+.275*cube[:,:,:,-2]
 
     return test_cube
-    
+
 
 def write_h(nchans,dd,xnpix,xpixscale,lstep,vsys):
     'Create a header for the output image'
     hdr = fits.Header()
     cen = [xnpix/2.+.5,xnpix/2.+.5]   # - central pixel location
-    
+
     hdr['SIMPLE']='T'
     hdr['BITPIX'] = 32
     hdr['NAXIS'] = 3
@@ -484,7 +485,7 @@ def write_h_cont(dd,xnpix,xpixscale):
     'Create a header for the output image'
     hdr = fits.Header()
     cen = [xnpix/2.+.5,xnpix/2.+.5]   # - central pixel location
-    
+
     hdr['SIMPLE']='T'
     hdr['BITPIX'] = 32
     hdr['NAXIS'] = 3
@@ -529,11 +530,11 @@ def xy_interpol(cube,dec,ra,xnpix,imres,flipme=0):
 
     r = (np.sqrt(dec*dec+ra*ra))[0,:]
     phi = np.arange(nphi)*2*np.pi/(nphi-1)
-    
+
     # - do interpolation
     iR = np.interp(pR,r,range(nr))
     iPhi = np.interp(pPhi,phi,range(nphi))
-    
+
     if flipme:
         dchans = nchans/2. + 0.5
     else:
@@ -561,7 +562,7 @@ def xy_interpol(cube,dec,ra,xnpix,imres,flipme=0):
         # - do interpolation
         iR = np.interp(pR,r,range(nr))
         iPhi = np.interp(pPhi,phi,range(nphi))
-    
+
         w = (pR>r.max()).reshape(xnpix,xnpix)
         for i in range(int(dchans),nchans):
             sqcube[:,:,i] = ndimage.map_coordinates(cube[:,:,i],[[iPhi],[iR]],order=1).reshape(xnpix,xnpix)
@@ -575,7 +576,7 @@ def findtau1(disk,tau,Inu,cube3,flag=0.):
     nphi = disk.nphi
     phi = np.arange(nphi)*2*np.pi/(nphi-1)
     z=disk.Z
-    
+
     ztau1=np.zeros((nphi,nr))
     for ir in range(nr):
         for iphi in range(nphi):
@@ -594,7 +595,7 @@ def findtau1(disk,tau,Inu,cube3,flag=0.):
             #if tau[iphi,ir,-1]==0:
             #    ztau1[iphi,ir] = -170*disk.AU
             #if (iphi % 50 ==0) & (ir %50==0):
-            #    print tau[iphi,ir,-1],ztau1[iphi,ir]/disk.AU
+            #    print(tau[iphi,ir,-1],ztau1[iphi,ir]/disk.AU)
     return ztau1
 #c18o 2-1: 4.1e-5
 #13co 2-1: 5.1e-5
@@ -614,7 +615,7 @@ def plot_tau1(disk,tau,tau_dust):
     #cs2 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoH2)[iphi,:,:]),np.arange(0,11,0.1))
     cs3 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10(disk.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
     #manual_locations=[(300,30),(250,60),(180,50),(180,70),(110,60),(45,30)]
-    cs3 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,disk.T[iphi,:,:],(10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,200,300,400),colors='k',ls='--')
+    cs3 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,disk.T[iphi,:,:],(10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,200,300,400),colors='k',linestyles='--')
     cs = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,tau[iphi,:,:],(1,),colors='k',linestyles='--',linewidths=3)
     cs_dust = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,tau_dust[iphi,:,:],(1,),colors='k',linewidths=3)
     plt.clabel(cs3,fmt='%1i')
@@ -627,12 +628,12 @@ def plot_tau1(disk,tau,tau_dust):
     #cs2 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoH2)[iphi,:,:]),np.arange(0,11,0.1)) #H2 number density throughout disk
     cs3 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10(disk.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
     manual_locations=[(-300,30),(-250,60),(-180,50),(-180,70),(-110,60),(-45,30)]
-    cs3 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,disk.T[iphi,:,:],(10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,200,300,400),colors='k',ls='--')
+    cs3 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,disk.T[iphi,:,:],(10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,200,300,400),colors='k',linestyles='--')
     cs = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,tau[iphi,:,:],(1,),colors='k',linestyles='--',linewidths=3)
     cs_dust = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,tau_dust[iphi,:,:],(1,),colors='k',linewidths=3)
     plt.plot(-disk.rf/disk.AU,disk.calcH()/disk.AU,color='k')
-    print 'H: ',disk.rf/disk.AU,disk.calcH()/disk.AU
-    
+    #print('H: ',disk.rf/disk.AU,disk.calcH()/disk.AU)
+
     ax = plt.gca()
     for tick in ax.xaxis.get_major_ticks():
         tick.label1.set_fontsize(14)
@@ -650,10 +651,10 @@ def plot_tau1(disk,tau,tau_dust):
     plt.show()
     #iphi=74#26 (near side of disk)#74 (far side of disk)
     #cs = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,tau[iphi,:,:],(1,),colors='k',linestyles='--',linewidths=3)
-    
+
     #for i in range(disk.get_obs()[1]):
-    #    print i,tau[i,:,:].max()
-    
+    #    print(i,tau[i,:,:].max())
+
 
 def flux_range(disk,cube3,r0,height=True):
     ''' For a given radius, derive the range of heights over which 25%-75% of the flux originate.'''
@@ -675,13 +676,14 @@ def flux_range(disk,cube3,r0,height=True):
     w = flux_all>0
     ztau_all = ztau_all[w]/flux_all[w]
     flux_all = flux_all[w]
-    wuse = flux_all>.01*flux_all.max()
+
+    wuse = flux_all>.05*flux_all.max()
     w = np.argsort(ztau_all[wuse])
     if height:
-        print 'R, Z(25%), Z(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))]
+        print('R, Z(25%), Z(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
     else:
-        print 'R, T(25%), T(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))]
-    
+        print('R, T(25%), T(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
+
 
 def mol_dat(file='co.dat'):
     import numpy as np
@@ -701,13 +703,13 @@ def mol_dat(file='co.dat'):
         idum, ieterm, igstat, idum = (codat.readline()).split()
         eterm[i]=(float(ieterm))
         gstat[i]=(float(igstat))
-        
+
 
     # Read in radiative transitions
     sdum = codat.readline()
     nrad = int(codat.readline())
     sdum = codat.readline()
-    
+
     A21 = np.zeros(nrad)
     freq = np.zeros(nrad)
     Eum = np.zeros(nrad)
@@ -717,10 +719,7 @@ def mol_dat(file='co.dat'):
         freq[i] = float(ifreq)
         Eum[i] = float(iEum)
 
-    
+
     codat.close()
 
     return {'eterm':eterm,'gstat':gstat,'specref':specref,'amass':amass,'nlev':nlev,'A21':A21,'Eum':Eum}
-
-
-

@@ -46,7 +46,7 @@ class Disk:
     H2tog = 0.8    # - H2 abundance fraction (H2:gas)
     Tco = 19.    # - freeze out
     sigphot = 0#0.79*sc   # - photo-dissociation column
-    
+
     def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1],obs=[180,131,300,170],rtg=True,vcs=True,exp_temp=False,line='co',ring=None):
 
         self.ring=ring
@@ -74,21 +74,21 @@ class Disk:
         self.zq0 = params[10]               # - Zq, in AU, at 150 AU
         self.tmid0 = params[11]             # - Tmid at 150 AU
         self.tatm0 = params[12]             # - Tatm at 150 AU
-        self.handed = params[13]            # 
+        self.handed = params[13]            #
         self.costhet = np.cos(self.thet)  # - cos(i)
         self.sinthet = np.sin(self.thet)  # - sin(i)
         if self.ring is not None:
             self.Rring = self.ring[0]*Disk.AU #location of the ring
             self.Wring = self.ring[1]*Disk.AU #width of the ring
             self.sig_enhance = self.ring[2] #power law slope of the inner temperature structure
-        
+
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
         self.nr = obs[0]
         self.nphi = obs[1]
         self.nz = obs[2]
         self.zmax = obs[3]*Disk.AU
-                
+
 
     def set_structure(self,exp_temp=False):
         '''Calculate the disk density and temperature structure given the specified parameters'''
@@ -135,8 +135,8 @@ class Disk:
             tempg = tmid*np.exp(np.log(tatm/tmid)*zcf/zq)
             ii = tempg > 500 #cap on temperatures
             tempg[ii] = 500.
-                    
-        
+
+
         # Calculate vertical density structure
         Sc_old = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
                          #        siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
@@ -158,33 +158,33 @@ class Disk:
 
 
         self.calc_hydrostatic(tempg,siggas,grid)
-        
-        
+
+
         #Calculate radial pressure differential
         Pgas = Disk.kB/Disk.m0*self.rho0*tempg
         dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
-        
+
         #Calculate velocity field
         #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
         Omg = np.sqrt(Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5)
         Omk = np.sqrt(Disk.G*self.Mstar/rcf**3.)
         #Omg = Omk
-        
+
         # Check for NANs
         ii = np.isnan(Omg)
         Omg[ii] = Omk[ii]
         ii = np.isnan(self.rho0)
         if ii.sum() > 0:
             self.rho0[ii] = 1e-60
-            print 'Beware: removed NaNs from density (#%s)' % ii.sum()
+            print('Beware: removed NaNs from density (#%s)' % ii.sum())
         ii = np.isnan(tempg)
         if ii.sum() > 0:
             tempg[ii] = 2.73
-            print 'Beware: removed NaNs from temperature (#%s)' % ii.sum()
+            print('Beware: removed NaNs from temperature (#%s)' % ii.sum())
         ii = np.isinf(Omg)
         if ii.sum() > 0:
             Omg[ii] = Omk[ii]
-            
+
         # find photodissociation boundary layer from top
         zpht = np.zeros(nrc)
         sig_col = np.zeros((nrc,nzc)) #Cumulative mass surface density along vertical lines starting at z=170 au.
@@ -225,7 +225,7 @@ class Disk:
             else:
                 zice[ir] = zmin
 
-        
+
         self.rf = rf
         self.nrc = nrc
         self.zf = zf
@@ -233,10 +233,10 @@ class Disk:
         self.tempg = tempg
         self.Omg0 = Omg
         self.zpht = zpht
-        
-        
-        
-        
+
+
+
+
         if 0:
             plt.figure()
             cs = plt.contour(rcf/Disk.AU,zcf/Disk.AU,np.log10(self.rho0/(Disk.mu*Disk.mh)),np.arange(0,10,1))
@@ -267,10 +267,10 @@ class Disk:
         R = np.linspace(0,self.Rout,self.nr)#np.logspace(np.log10(self.Rin),np.log10(self.Rout),self.nr)
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
         foo = np.floor(self.nz/2)
-        
+
         S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin#np.concatenate([Smid+Smin-10**(np.log10(Smid)+np.log10(Smin/Smid)*np.arange(foo)/(foo)),Smid-Smin+10**(np.log10(Smin)+np.log10(Smid/Smin)*np.arange(foo)/(foo))])
-        
-        
+
+
         # Basically copy S_old, with length nz,  into each column of a nphi*nr*nz matrix
         S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
 
@@ -288,7 +288,7 @@ class Disk:
         xydisk =  tr[:,:,0] <= self.Rout+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
 
         # interpolate to calculate disk temperature and densities
-        #print 'interpolating onto radiative transfer grid'
+        #print('interpolating onto radiative transfer grid')
         #need to interpolate tempg from the 2-d rcf,zcf onto 3-d tr
         xind = np.interp(tr.flatten(),self.rf,range(self.nrc)) #rf,nrc
         yind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
@@ -306,7 +306,7 @@ class Disk:
         # photo-dissociation
         zap = (np.abs(tdiskZ) >= zpht)
         if zap.sum() > 0:
-            trhoG[zap] = 1e-18*trhoG[zap] 
+            trhoG[zap] = 1e-18*trhoG[zap]
 
         #outer disk (for power law disks)
         zap = (tr > self.Rc)
@@ -330,7 +330,7 @@ class Disk:
         else:
             tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
 
-        
+
         # store disk
         self.X = X
         self.Y = Y
@@ -380,17 +380,17 @@ class Disk:
         else: #assume line.lower()=='co'
             #temperature and turbulence broadening
             tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*self.m_mol)*tT+self.vturb**2)
-            
+
 
         self.dBV=tdBV
 
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=False):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
-        
+
         if initialize:
             self.dtg = 0*self.r
             self.kap = 2.3
-        
+
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
@@ -405,47 +405,47 @@ class Disk:
         #compute rho structure
         rho0 = np.zeros((nrc,nzc))
         sigint = siggas
-        
-        #print 'Doing hydrostatic equilibrium'
+
+        #print('Doing hydrostatic equilibrium')
         for ir in range(nrc):
             #compute gravo-thermal constant
             grvc = Disk.G*self.Mstar*Disk.m0/Disk.kB
 
             #extract the T(z) profile at a given radius
             T = tempg[ir]
-                        
+
             #differential equation for vertical density profile
             z = zcf[ir]
             dz = (z - np.roll(z,1))
             dlnT = (np.log(T)-np.roll(np.log(T),1))/dz
             dlnp = -1*grvc*z/(T*(rf[ir]**2.+z**2.)**1.5)-dlnT
             dlnp[0] = -1*grvc*z[0]/(T[0]*(rf[ir]**2.+z[0]**2.)**1.5)
-            
+
             #numerical integration to get vertical density profile
             foo = dz*(dlnp+np.roll(dlnp,1))/2.
             foo[0] = 0.
             lnp = foo.cumsum()
-            
+
             #normalize the density profile (note: this is just half the sigma value!)
             dens = 0.5*sigint[ir]*np.exp(lnp)/np.trapz(np.exp(lnp),z)
             rho0[ir,:] = dens
-            
+
             cs = np.sqrt(Disk.kB*T[0]/Disk.m0)
             omega=np.sqrt(Disk.G*self.Mstar/rf[ir]**3.)
             hr = np.sqrt(2.)*cs/omega
             rho0[ir,:] = sigint[ir]/(np.sqrt(np.pi)*hr)*np.exp(-1.0*pow(z/hr,2.))
-            
+
             #if ir == 0:
             #    cs = np.sqrt(Disk.kB*T[0]/Disk.m0)
             #    omega = np.sqrt(Disk.G*self.Mstar/rf[ir]**3)
             #    hr = np.sqrt(2)*cs/omega
-            #    print rf[ir]/self.AU
+            #    print(rf[ir]/self.AU)
             #    rho2 = sigint[ir]/(np.sqrt(np.pi)*hr)*np.exp(-1*(z/hr)**2)
             #    plt.plot(z,dens,color='k',lw=6)
             #    plt.plot(z,rho2,color='r',ls='--')
-            
+
         self.rho0=rho0
-        #print Disk.G,self.Mstar,Disk.m0,Disk.kB
+        #print(Disk.G,self.Mstar,Disk.m0,Disk.kB)
 
     def density(self):
         'Return the density structure'
@@ -515,7 +515,7 @@ class Disk:
             cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoD[0,:,:]),100,colors='k',linestyles='--')
         else:
             manual_locations=[(240,30),(150,22),(100,18),(80,12),(60,8),(30,4)]
-            cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,self.T[0,:,:],(20,25,30,35,40,50),colors='k',ls='--')
+            cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,self.T[0,:,:],(20,25,30,35,40,50),colors='k',linestyles='--')
             plt.clabel(cs3,fmt='%1i',manual=manual_locations)
         plt.colorbar(cs2,label='log n')
         plt.xlim(0,rmax)
@@ -540,10 +540,10 @@ class Disk:
 
         H100 = np.interp(100*Disk.AU,rf,H)
         psi = (np.polyfit(np.log10(rf),np.log10(H),1))[0]
-        
+
         if verbose:
-            print 'H100 (AU): {:.3f}'.format(H100/Disk.AU)
-            print 'power law: {:.3f}'.format(psi)
+            print('H100 (AU): {:.3f}'.format(H100/Disk.AU))
+            print('power law: {:.3f}'.format(psi))
 
         if return_pow:
             return (H100/Disk.AU,psi)
