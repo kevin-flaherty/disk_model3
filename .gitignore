@@ -1,0 +1,17 @@
+*txt~
+*~
+*.py~
+*.pyc
+*.cm/*
+*.vis/*
+*.im/*
+*.fits
+*.log
+aumic_model.py
+.nfs*
+diskG.py*
+single_modelG.py*
+*.sav
+
+
+
