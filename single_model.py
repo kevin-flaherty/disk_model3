@@ -1,13 +1,14 @@
 
 from astropy.io import fits
 import os
-from scipy.io.idl import readsav
 from disk import *
 from raytrace import *
 from scipy.optimize import curve_fit
 import scipy.interpolate
 from scipy.integrate import cumtrapz,trapz
 from galario import double as gdouble
+import time
+import uuid
 
 
 ##############################################################################
@@ -69,7 +70,7 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
                 real_model = vis_mod[::2,0,0,:,0,0]
                 imag_model = vis_mod[::2,0,0,:,0,1]
     else:
-        
+
         if obj[0].header['telescop'] == 'ALMA':
             if obj[0].header['naxis3'] == 2:
                 real_obj = (vis_obj[:,0,0]+vis_obj[:,1,0])/2.
@@ -84,17 +85,17 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
                 imag_model = vis_mod[::2,1]
     obj.close()
     model.close()
-        
-    
+
+
     # if model has nans then just return chi=inf
     if (np.isnan(real_model)).sum() >0:
         return np.inf
-    
+
     # - Add systematic uncertainty
     if systematic:
         real_model = real_model/systematic
         imag_model = imag_model/systematic
-        
+
     if len(new_weight) > 1:
         #weight_alma = new_weight
         weight_real = new_weight
@@ -104,8 +105,8 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
     #weight_alma[wremove] = 0.
     weight_real[real_obj==0] = 0.
     weight_imag[imag_obj==0] = 0.
-    print 'Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum())
-#    print 'Retained data %i' % ((weight_alma !=0).sum())
+    print('Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum()))
+#    print('Retained data %i' % ((weight_alma !=0).sum()))
 
     if plot_resid:
         #Code to plot, and fit, residuals
@@ -118,8 +119,8 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
         n,bins,patches = plt.hist(diff,10000,normed=1,histtype='step',color='k',label='Data',lw=3)
         popt,pcov = curve_fit(gaussian,bins[1:],n)
         y=gaussian(bins,popt[0],popt[1],popt[2])
-        print 'Gaussian fit parameters (amp,width,center): ',popt
-        print 'If errors are properly scaled, then width should be close to 1'
+        print('Gaussian fit parameters (amp,width,center): ',popt)
+        print('If errors are properly scaled, then width should be close to 1')
         plt.plot(bins,y,'r--',lw=6,label='gaussuian')
         #slight deviations from gaussian, but gaussian is still the best...
         plt.xlabel('(Model-Data)/$\sigma$',fontweight='bold',fontsize=20)
@@ -132,7 +133,7 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
             tick.label1.set_fontweight('bold')
 
         plt.show()
-    
+
     # - Calculate Chi-squared
     uv = np.sqrt(u_obj**2+v_obj**2)
     chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
@@ -221,7 +222,7 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
 
     weight_real[real_obj==0] = 0.
     weight_imag[imag_obj==0] = 0.
-    print 'Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum())
+    print('Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum()))
 
     if plot_resid:
         #Code to plot, and fit, residuals
@@ -234,8 +235,8 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
         n,bins,patches = plt.hist(diff,10000,normed=1,histtype='step',color='k',label='Data',lw=3)
         popt,pcov = curve_fit(gaussian,bins[1:],n)
         y=gaussian(bins,popt[0],popt[1],popt[2])
-        print 'Gaussian fit parameters (amp,width,center): ',popt
-        print 'If errors are properly scaled, then width should be close to 1'
+        print('Gaussian fit parameters (amp,width,center): ',popt)
+        print('If errors are properly scaled, then width should be close to 1')
         plt.plot(bins,y,'r--',lw=6,label='gaussuian')
         #slight deviations from gaussian, but gaussian is still the best...
         plt.xlabel('(Model-Data)/$\sigma$',fontweight='bold',fontsize=20)
@@ -248,7 +249,7 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
             tick.label1.set_fontweight('bold')
 
         plt.show()
-  
+
 
 
     chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
@@ -256,41 +257,44 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
 
 def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=False):
     '''Calculate the log-likelihood (=-0.5*chi-squared) for a given model. p=[q,log(mdisk),log(rc),log(vturb/cco),Zq,Tatm,pp,Tmid,incl,gain]'''
-    import tempfile
-    import time
+
     start=time.time()
+    all_params = {'q':p[0], #q
+    'Mdisk':0.09, #solar masses
+    'p':1, #gamma
+    'Rin':1., #Model inner domain - generally no need to change
+    'Rout':1000., #Model outer domain - generally no need to change
+    'Rc',10**(p[1]), #Rc
+    'incl':p[5], #inclination, degrees
+    'Mstar':2.3, #solar masses
+    'Xco':10**(-4.), #Abundance
+    'vturb':p[2], #turbulence, as a fraction of the thermal broadening for this line
+    'Zq0':70., #Zq0
+    'Tmid0':p[4], #K
+    'Tatm0':p[3],#K
+    'Zabund':[.79,1000], #upper and lower boundaries in column density
+    'Rabund':[p[6],800.], #inner and outer boundaries for abundance
+    'handed':-1, #handed
+    'vsys':p[7], #systemic velocity, km/s
+    'offs':[p[8],p[9]], #position offset, arcseconds
+    'PA':p[10], #position angle, degrees
+    'distance':101.} #distance
     if line.lower() =='co21' or line.lower()=='co32' or line.lower()=='svco21':
-        #[q,Rc,vturb,Tatm0,Tmid0,incl,Rin]
-        params = [p[0], #qq
-                  0.09,#10**(p[1]), #Mdisk
-                  1.,#1.181526,#p[6],#1.,   #pp
-                  1.,#10.,  #Rin
-                  800.,#Rout
-                  10**(p[1]),#10**(p[2]), #Rc
-                  p[5], #51.5 #inclination
-                  2.3,  #Mstar
-                  10**(-4.),#1e-4, #Xco
-                  p[2],#p[2],#10**(p[3]), #vturb
-                  70.,#p[4], #Zq0
-                  p[4],#19.,  #Tmid0
-                  p[3], #Tatm0
-                  [.79,1000], #upper and lower boundaries in column density
-                  [p[6],800.], #inner and outer boundaries for abundance
-                  -1]   #handed
-    if params[1] <0 or params[1]>params[7] or params[3]<0 or params[3]>params[4] or params[4]<0 or params[5]<0 or params[6]<0 or params[6]>90 or params[7]<0 or params[8]<0 or params[9]<0 or params[10]<0 or params[11]<0 or params[11]>params[12] or params[12]<0 or params[13][0]<0 or params[13][1]<0 or params[13][1]<params[13][0] or params[14][0]<0 or params[14][0]<params[3] or params[14][0]>params[14][1] or params[14][1]<0 or params[14][1]>params[4]:
+        params = [all_params['q'],all_params['Mdisk'],all_params['p'],all_params['Rin'],all_params['Rout'],all_params['Rc'],all_params['incl'],all_params['Mstar'],all_params['Xco'],all_params['vturb'],all_params['Zq0'],all_params['Tmid0'],all_params['Tatm0'],all_params['Zabund'],all_params['Rabund'],all_params['handed']]
+    if all_params['Mdisk'] <0 or all_params['Mdisk']>all_params['Mstar'] or all_params['Rin']<0 or all_params['Rin']>all_params['Rout'] or all_params['Rout']<0 or all_params['Rc']<0 or all_params['Mstar']<0 or all_params['vturb']<0 or all_params['Zq0']<0 or all_params['Tmid0']<0 or all_params['Tmid0']>all_params['Tatm0'] or all_params['Tatm0']<0 or all_params['Zabund'][0]<0 or all_params['Zabund'][1]<0 or all_params['Zabund'][1]<all_params['Zabund'][0] or all_params['Rabund'][0]<0 or all_params['Rabund'][0]<all_params['Rin'] or all_params['Rabund'][0]>all_params['Rabund'][1] or all_params['Rabund'][1]<0 or all_params['Rabund'][1]>all_params['Rout']:
         chi = np.inf
         nu = 1
     else:
         if add_ring:
             if systematic:
                 if p[-3]<0:
-                    print 'Bad ring parameters ',p[-3],p[-2]
+                    print('Bad ring parameters ',p[-3],p[-2])
                     return -np.inf
                 else:
                     disk_structure=Disk(params,rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-3])/2.,p[-3]-params[3],p[-2]])
             else:
                 if p[-2]<0:
-                    print 'Bad Ring parameters',p[-2:]
+                    print('Bad Ring parameters',p[-2:])
                     return -np.inf
                 else:
                 #disk_structure = Disk(params,rtg=False,exp_temp=exp_temp,ring=[p[-3],p[-2],p[-1]])
@@ -304,89 +308,47 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
         else:
             modfile = 'alma'
 
-        # The next series of lines are very specific to the CO3-2 ALMA data for HD 163296, and would need to be modified to use another data set. Basically you need to set the keyword datfile, read in the weights, set the degrees of freedom, set the chanmin,nchans,chanstep keywords (specific to this spectra you are trying to simulate) as well as the image offset. 
+        # The next series of lines are very specific to the CO3-2 ALMA data for HD 163296, and would need to be modified to use another data set. Basically you need to set the keyword datfile, read in the weights, set the degrees of freedom, set the chanmin,nchans,chanstep keywords (specific to this spectra you are trying to simulate) as well as the image offset.
         if line.lower() == 'co21':
-            if highres:
-                datfile = 'CO_highres_cen'
-                hdr=fits.getheader(datfile+'.vis.fits')
-                nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-39320 #227478
-                freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
-                obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
-                vsys=5.74#5.76 from grid_search
-                chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
-                nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-                chanmin = -(nchans/2.-.5)*chanstep
-                offs = [-0.03,0.02]
-                resolution = 0.05
-                #chain=np.recfromtxt('CO_highres_cen_weights.dat')
-                #new_weight = np.zeros(len(chain))
-                #for i in range(len(chain)):
-                #    new_weight[i] = (chain[i][0]+chain[i][1])/2.
-                new_weight = (fits.open('CO_highres_cen_weights2.fits'))[0].data
-                new_weight = new_weight[:,np.newaxis]*np.ones(len(obsv))
-                obs = [150,101,300,170] #150,101,280,170 rt grid nr,nphi,nz,zmax
-            else:
-                base = '/Volumes/disks/kevin/HD163296_cycle2/'
-                datfile = base+'CO_lowres'
-                hdr=fits.getheader(datfile+'.vis.fits')
-                nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-193116 #193116
-                freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
-                obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
-                vsys=5.743#5.79#5.743 from grid_search
-                chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
-                nchans = int(2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1)
-                chanmin = -(nchans/2.-.5)*chanstep
-                offs = [-.03,0.02]#[-.06,.02] from grid_search with .04 steps
-                resolution = 0.05
-                obs = [250,101,350,150] #rt grid nr,nphi,nz,zmax
-                #chain=np.recfromtxt('CO_lowres_weights.dat')
-                #new_weight = np.zeros(len(chain))
-                #for i in range(len(chain)):
-                #    new_weight[i] = (chain[i][0]+chain[i][1])/2.
-                new_weight = (fits.open(base+'CO_lowres_weights2.fits'))[0].data
-                new_weight = new_weight[:,np.newaxis]*np.ones(len(obsv))
-                #chain = fits.open('CO_lowres_weights.fits')
-                #new_weight = chain[0].data
+            datfile = 'CO_highres_cen'
+            hdr=fits.getheader(datfile+'.vis.fits')
+            nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-39320 #227478
+            freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
+            obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
+            vsys=all_params['vsys']#5.76 from grid_search
+            chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
+            nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
+            chanmin = -(nchans/2.-.5)*chanstep
+            offs = all_params['offs']
+            resolution = 0.05
+            obs = [150,101,300,170] #150,101,280,170 rt grid nr,nphi,nz,zmax
+
             disk_structure.set_obs(obs)
             disk_structure.set_rt_grid(vcs=vcs)
             disk_structure.set_line(line)
-            total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,imres=resolution,obsv=obsv,vsys=vsys,freq0=230.538,Jnum=1)
+            disk_structure.add_mol_ring(all_params['Rabund'][0],all_params['Rabund'][1],.79,3.,all_params['Xco'],just_frozen=True)
+            total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,imres=resolution,obsv=obsv,vsys=vsys,freq0=230.538,Jnum=1,distance=all_params['distance'],hanning=True,PA=all_params['PA'],bin=1)
             if not use_galario:
                 make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=230.538)
         if line.lower() == 'co32':
-            if highres:
-                datfile = 'HD163296.CO32.new'
-                hdr = fits.getheader(datfile+'.vis.fits')
-                nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-2495811.
-                freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
-                obsv = (345.79599e9-freq)/(345.79599e9)*2.99e5
-                vsys = 6.948
-                chanstep = np.abs(obsv[1]-obsv[0])
-                nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-                chanmin = -(nchans/2.-.5)*chanstep
-                offs = [0.,0.]
-                resolution = 0.05
-                obs = [150,101,300,150]
-                w = readsav('~/Turbulence/HD163296/simple_gas_py/data/highres_ALMA_weights_calc.sav')
-                new_weight = w['weight_alma']
-            else:
-                datfile = 'HD163296.CO32.regridded.cen15'
-                hdr = fits.getheader(datfile+'.vis.fits')
-                nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-384735.
-                freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
-                obsv = (345.79599e9-freq)/(345.79599e9)*2.99e5
-                vsys = 6.948#5.79
-                chanstep = np.abs(obsv[1]-obsv[0])
-                nchans = int(2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1)
-                chanmin = -(nchans/2.-.5)*chanstep
-                offs=[.045,-.03]
-                resolution = 0.05
-                obs = [150,101,300,150]
-                w = readsav('lowres_ALMA_weights_calc.sav')
-                new_weight = w['weight_alma']
+            datfile = 'HD163296.CO32.new'
+            hdr=fits.getheader(datfile+'.vis.fits')
+            nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-39320 #227478
+            freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
+            obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
+            vsys=all_params['vsys']#5.76 from grid_search
+            chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
+            nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
+            chanmin = -(nchans/2.-.5)*chanstep
+            offs = all_params['offs']
+            resolution = 0.05
+            obs = [150,101,300,170] #150,101,280,170 rt grid nr,nphi,nz,zmax
+
             disk_structure.set_obs(obs)
             disk_structure.set_rt_grid(vcs = vcs)
-            total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,freq0=345.79599,Jnum=2,imres=resolution,vsys=vsys,obsv=obsv)
+            disk_structure.set_line(line)
+            disk_structure.add_mol_ring(all_params['Rabund'][0],all_params['Rabund'][1],.79,3.,all_params['Xco'],just_frozen=True)
+            total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,freq0=345.79599,Jnum=2,imres=resolution,vsys=vsys,obsv=obsv,distance=all_params['distance'],hanning=True,PA=all_params['PA'],bin=1)
             if not use_galario:
                 make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=345.79599)
 
@@ -410,13 +372,13 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
     if np.isnan(chi):
         chi = 100*nu
 
-    print p
-    print chi/nu
+    print(p)
+    print(chi/nu)
 
 
     if massprior:
         # Include a prior on mass with the likelihood estimate
-        # Assume a gaussian prior with given mean and 
+        # Assume a gaussian prior with given mean and
         mean_mdisk = 0.09 #mean Mdisk
         sig_mdisk = 0.01 # standard deviation on prior
         lnp = -np.log(sig_mdisk*np.sqrt(2*np.pi))-(p[1]-mean_mdisk)**2/(2*sig_mdisk**2)
@@ -429,8 +391,8 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
         #else:
         #    lnp=0.
         #lnp -= (p[-1]-1.)**2/(2*.2**2) #prior on the gain, centered at 1 with dispersion of 0.2
-        
-    print '%r minutes' % ((time.time()-start)/60.)
+
+    print('%r minutes' % ((time.time()-start)/60.))
     return -0.5*chi+lnp
     #return chi/nu
 
@@ -464,7 +426,7 @@ def lnlike_dust(p,systematic=False,cleanup=False,add_ring=False,band=6,add_point
             point_params=[]
         if add_ring:
             if  p[7]<0:
-                print 'Bad ring parameters'
+                print('Bad ring parameters')
                 return -np.inf
             else:
                 disk_structure = Disk(params,ring=[(p[1]+p[7])/2.,p[7]-p[1],p[8]],obs=[500,131,400,120])#,obs=[500,101,500,150])
@@ -501,7 +463,7 @@ def lnlike_dust(p,systematic=False,cleanup=False,add_ring=False,band=6,add_point
         nu = 2*hdr['gcount']-len(p)-0
         new_weight = (fits.open(datfile+'_weights.fits'))[0].data
         total_model(disk=disk_structure,nchans=nchans,offs=offs,datfile=datfile,modfile=modfile,imres=resolution,freq0=freq,isgas=False,xnpix=npix,add_point=point_params)
- 
+
 
 
         if systematic:
@@ -521,15 +483,15 @@ def lnlike_dust(p,systematic=False,cleanup=False,add_ring=False,band=6,add_point
         chi = 100*nu
 
 
-    print p
-    print chi/nu
+    print(p)
+    print(chi/nu)
 
     if systematic:
         lnp = -(p[-1]-1.)**2/(2*.2**2) #prior on gain, centered at 1 with dispersion of 0.2
     else:
         lnp=0
 
-    print '{:0.3f} minutes'.format((time.time()-start)/60.)
+    print('{:0.3f} minutes'.format((time.time()-start)/60.))
     return -0.5*chi+lnp
 
 
@@ -566,7 +528,7 @@ def grid_search():
             yoff_tot.append(gamma)
 
 
-            
+
     #nsteps_i = 20
     #vsys_tot = []
     #for i in range(nsteps_i):
@@ -582,10 +544,10 @@ def grid_search():
     xoff_tot = np.array(xoff_tot)
     yoff_tot = np.array(yoff_tot)
 #    vsys_tot = np.array(vsys_tot)
-    print 'xoff: ',xoff_tot[chi==chi.min()]
-    print 'yoff: ',yoff_tot[chi==chi.min()]
+    print('xoff: ',xoff_tot[chi==chi.min()])
+    print('yoff: ',yoff_tot[chi==chi.min()])
 #    print 'vsys: ',vsys_tot[chi==chi.min()]
-    print 'chi: ',chi.min()/nu
+    print('chi: ',chi.min()/nu)
 #    plt.figure()
 #    plt.plot(vsys_tot,chi/nu,'.')
 #    plt.axvline(vsys_tot[chi==chi.min()])
@@ -598,9 +560,5 @@ def grid_search():
     plt.plot(yoff_tot,chi/nu,'.')
     plt.axvline(yoff_tot[chi==chi.min()])
     plt.xlabel('yoff')
-    print '%r minutes' % ((time.clock()-start)/60.)
-    #print chi
-
-
-
-
+    print('%r minutes' % ((time.clock()-start)/60.))
+    #print(chi)
