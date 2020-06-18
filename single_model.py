@@ -264,7 +264,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
     'p':1, #gamma
     'Rin':1., #Model inner domain - generally no need to change
     'Rout':1000., #Model outer domain - generally no need to change
-    'Rc',10**(p[1]), #Rc
+    'Rc':,10**(p[1]), #Rc
     'incl':p[5], #inclination, degrees
     'Mstar':2.3, #solar masses
     'Xco':10**(-4.), #Abundance
