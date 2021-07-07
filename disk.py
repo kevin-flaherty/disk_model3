@@ -14,7 +14,7 @@
 
 #under python 3.7, creating a disk object takes 63.7 seconds
 #under python 2.7, creating a disk object takes 64.5 seconds
-#disk_pow also takes one less second. disk_ecc runs ten seconds faster under python 3.7. debris_disk_ecc runs 6 seconds faster under python 3.7. 
+#disk_pow also takes one less second. disk_ecc runs ten seconds faster under python 3.7. debris_disk_ecc runs 6 seconds faster under python 3.7.
 
 import math
 import numpy as np
@@ -153,7 +153,7 @@ class Disk:
 
 
         # Calculate vertical density structure
-        Sc = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
+        Sc = self.McoG*np.abs(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
         siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
         if self.ring is not None:
             w = np.abs(rcf-self.Rring)<self.Wring/2.
