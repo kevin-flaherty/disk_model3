@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 import scipy.signal
 from scipy import ndimage
 from astropy import constants as const
+from scipy.special import ellipk,ellipe
+from scipy.integrate import trapz
 
 class Disk:
     'Common class for circumstellar disk structure'
@@ -45,13 +47,14 @@ class Disk:
     sc = 1.59e21   # - Av --> H column density (C. Qi 08,11)
     H2tog = 0.8    # - H2 abundance fraction (H2:gas)
     Tco = 19.    # - freeze out
-    sigphot = 0#0.79*sc   # - photo-dissociation column
+    sigphot = 0.79*sc   # - photo-dissociation column
 
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1],obs=[180,131,300,170],rtg=True,vcs=True,exp_temp=False,line='co',ring=None):
+    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1],obs=[180,131,300,170],rtg=True,vcs=True,exp_temp=False,line='co',ring=None,include_selfgrav=False):
 
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
+        self.include_selfgrav=include_selfgrav
 
         self.set_structure(exp_temp=exp_temp)  # use obs and params to create disk structure
         if rtg:
@@ -164,9 +167,23 @@ class Disk:
         Pgas = Disk.kB/Disk.m0*self.rho0*tempg
         dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
 
+        #Calculate self-gravity
+        if self.include_selfgrav:
+            dphidr = np.zeros((len(rf),len(zf)))
+            siggasf = siggas[:,np.newaxis]*np.ones(nzc)
+            for i in np.arange(len(rf)):
+                r = rf[i]
+                k = np.sqrt(4*r*rcf/((r+rcf)**2.+zcf**2.))
+                Kk = ellipk(k)
+                Ek = ellipe(k)
+                integrand = (Kk-.25*(k**2./(1-k**2.))*(rcf/r-r/rcf+zcf**2./(r*rcf))*Ek)*np.sqrt(rcf/r)*k*siggasf
+                dphidr[i,:] = (self.G/r)*trapz(integrand,rcf,axis=0)
+
         #Calculate velocity field
-        #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
-        Omg = np.sqrt(Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5)
+        if self.include_selfgrav:
+            Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5+dphidr/rcf))
+        else:
+            Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
         Omk = np.sqrt(Disk.G*self.Mstar/rcf**3.)
         #Omg = Omk
 

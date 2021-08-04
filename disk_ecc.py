@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 import scipy.signal
 from scipy import ndimage
 from astropy import constants as const
+from scipy.special import ellipk,ellipe
+from scipy.integrate import trapz
 
 #testing time
 import time
