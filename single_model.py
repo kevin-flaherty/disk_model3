@@ -255,7 +255,7 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
     chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
     return chi
 
-def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=False):
+def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=True):
     '''Calculate the log-likelihood (=-0.5*chi-squared) for a given model. p=[q,log(mdisk),log(rc),log(vturb/cco),Zq,Tatm,pp,Tmid,incl,gain]'''
 
     start=time.time()
@@ -313,12 +313,8 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
             datfile = 'CO_highres_cen'
             hdr=fits.getheader(datfile+'.vis.fits')
             nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-39320 #227478
-            freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
-            obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
             vsys=all_params['vsys']#5.76 from grid_search
-            chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
-            nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-            chanmin = -(nchans/2.-.5)*chanstep
+            obsv,chanstep,nchans,chanmin = calc_chans(hdr,vsys) #use if setting flipme=True
             offs = all_params['offs']
             resolution = 0.05
             obs = [150,101,300,170] #150,101,280,170 rt grid nr,nphi,nz,zmax
@@ -334,12 +330,8 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
             datfile = 'HD163296.CO32.new'
             hdr=fits.getheader(datfile+'.vis.fits')
             nu = 2*hdr['naxis4']*hdr['gcount']-len(p)-39320 #227478
-            freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
-            obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
             vsys=all_params['vsys']#5.76 from grid_search
-            chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
-            nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-            chanmin = -(nchans/2.-.5)*chanstep
+            obsv,chanstep,nchans,chanmin = calc_chans(hdr,vsys)
             offs = all_params['offs']
             resolution = 0.05
             obs = [150,101,300,170] #150,101,280,170 rt grid nr,nphi,nz,zmax
@@ -358,10 +350,10 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
         else:
             sys = None
 
-        if not use_galario:
-            chi = compare_vis(datfile=datfile,modfile=modfile,systematic=sys,new_weight=new_weight)
+        if use_galario:
+            chi = compare_vis_galario(datfile=datfile,modfile=modfile,systematic=sys)
         else:
-            chi = compare_vis_galario(datfile=datfile,modfile=modfile,systematic=sys,new_weight=new_weight)
+            chi = compare_vis(datfile=datfile,modfile=modfile,systematic=sys)
 
         if cleanup:
             # Clean up files
@@ -395,6 +387,21 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
     print('%r minutes' % ((time.time()-start)/60.))
     return -0.5*chi+lnp
     #return chi/nu
+
+def calc_chans(hdr,vsys):
+    '''Given the header for a set of data and a systemic velocity, calculate the number of channels, the minimum channel, and the channel spacing, that are needed when using flipme=True. Returns the velocities within the data, chanstep, nchans, chanmin.
+
+    obsv,chanstep,nchans,chanmin = calc_chans(hdr,5.79)
+    total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,obsv=obsv)
+
+    Setting flipme=True only works when the central channel corresponds to the systemic velocity. Since this is not always true in the data, the code will calculate the spectrum on a grid centered at the systemic velocity, and then interpolate onto the velocity grid of the data. This requires setting nchans and chanmin so that the modeled spectrum covers the full range of the data. This function calculates the values of nchans and chanmin that are needed to make this happen.'''
+
+    freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
+    obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
+    chanstep = np.abs(obsv[1]-obsv[0])
+    nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
+    chanmin = -(nchans/2.-.5)*chanstep
+    return obsv,chanstep,int(nchans),chanmin
 
 
 def lnlike_dust(p,systematic=False,cleanup=False,add_ring=False,band=6,add_point=False):
