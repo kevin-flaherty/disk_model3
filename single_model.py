@@ -13,6 +13,7 @@ import uuid
 
 ##############################################################################
 def make_model_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='testpy_alma',isgas=True,freq0=345.79599):
+    '''Create model visibilities from a model image, using Miriad. Deprecated in favor of Galario.'''
     if isgas:
         cmd = ' ./sample_alma.csh '+modfile+' '+datfile+' '+str(freq0)
     else:
@@ -21,6 +22,7 @@ def make_model_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='testpy_
 
 def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/testpy_alma',new_weight=[1,],systematic=False,isgas=True,plot_resid=False):
     '''Calculate the raw chi-squared based on the difference between the model and data visibilities.
+    Deprecated in favor of compare_vis_galario, which uses galario to calculate the model visibilities, instead of Miriad, which is used here.
 
     :param datfile: (default = 'data/HD163296.CO32.regridded.cen15')
      The base name for the data file. The code reads in the visibilities from datfile+'.vis.fits'
@@ -154,7 +156,7 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
     :param datfile: (default = 'data/HD163296.CO32.regridded.cen15')
      The base name for the data file. The code reads in the visibilities from datfile+'.vis.fits'
 
-     :param modfile" (default='model/testpy_alma')
+     :param modfile: (default='model/testpy_alma')
      The base name for the model file. The code reads in the visibilities from modfile+'.model.vis.fits'
 
      :param new_weight:
@@ -256,7 +258,29 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
     return chi
 
 def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=True):
-    '''Calculate the log-likelihood (=-0.5*chi-squared) for a given model. p=[q,log(mdisk),log(rc),log(vturb/cco),Zq,Tatm,pp,Tmid,incl,gain]'''
+    '''Calculate the log-likelihood (=-0.5*chi-squared) for a given model.
+
+    p (list): This is the list of variable parameters for the model. While there are many parameters for the model, this list includes the parameters that you want to adjust from one model to the next. For example, the disk gas mass is needed to generate the models, but if you don't want to adjust it, then it won't be included in p. The exact parameters included in p can be changed. By default p includes [q, log(Rc), vturb, Tatm0, Tmid0, inclination, Rabund_in, vsys, x offset, y offset, position angle]. See the all_params dictionary for a full list of model parameters, and to see which are included in p.
+
+    highres (default = False): Use a high-resolution version of the data. This flag is useful if you want to easily access different versions of the data. The code can be modified so that different versions of the data are used when this flag is on or off.
+
+    massprior (default = False): In general, uniform priors are assumed, but a non-uniform prior can be used on any number of variables. The code includes an example of applying a Gaussian prior on the disk mass, but this can be adjusted as needed.
+
+    cleanup (default = False):  If set to True then the model image will be given a unique name, and the model image will be deleted after the log-likelihood has been calculated. This is useful if you are running many log-likelihood calculations (e.g., with an MCMC) and you don't want to save each model image, and you don't want multiple processors that are running simultaneously to create model images with the same name.
+
+    systematic (default = False): If set to True, the code will account for systematic uncertainty in the flux. It will do so by multiplying the model image by a constant scale factor, specified by the last value in the list of parameters, p.
+
+    line (string, default = 'co21'): The line being studied. This can be used to use different data sets (in the same way as highres). It is also used in setting up the disk structure, by setting the line, and associated line broadening, that is used.
+
+    vcs (default = True): By default, the numerical value of the turbulence is assumed to refer to the turbulence relative to the thermal line broadening. Setting this parameter to False will instead interpret the numerical value of the turbulence as the velocity in units of km/sec.
+
+    exp_temp (default = False): By default, the disk modeling code uses the Dartois et al. Type II profile for the shape of the vertical temperature profile. Setting this parameter to True will use an exponential profile instead.
+
+    add_ring (default = False): DON'T USE. Has not been updated to work properly.
+
+    use_galario (default = True): Use Galario (Tazzari et al.) to calculate the visibilities from the model image, rather than using Miriad. 
+
+    '''
 
     start=time.time()
     all_params = {'q':p[0], #q
