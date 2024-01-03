@@ -18,13 +18,13 @@ import matplotlib.pyplot as plt
 import scipy.signal
 from scipy import ndimage
 from astropy import constants as const
-from numba import jitclass          # import the decorator
-from numba import int32, float32    # import the types
+#from numba import jitclass          # import the decorator
+#from numba import int32, float32    # import the types
 
-spec = [
-    ('value', int32),               # a simple scalar field
-    ('array', float32[:]),          # an array field
-]
+#spec = [
+#    ('value', int32),               # a simple scalar field
+#    ('array', float32[:]),          # an array field
+#]
 
 class Disk:
 
@@ -239,9 +239,14 @@ class Disk:
         Y = (np.outer(R,np.sin(phi))).transpose()
 
         #re-define disk midplane coordinates to be in line with radiative transfer grid
-        zsky   = Smid-S
-        tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
-        tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
+        #zsky   = Smid-S
+        #tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
+        #tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
+
+        tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
+        if self.thet > np.arctan(self.Rout/self.zmax):
+            tdiskZ -= (Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
 
         # transform grid
         tr      = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
