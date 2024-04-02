@@ -609,11 +609,12 @@ def plot_tau1(disk,tau,tau_dust):
     #ztau1 = findtau1(disk,tau,Inu)
     plt.figure()
     plt.rc('axes',lw=2)
-    iphi=21#8#26 (near side of disk)#74 (far side of disk) #21,59 for DCO+
+    iphi=8#8#26 (near side of disk)#74 (far side of disk) #21,59 for DCO+
     cs2 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoG/disk.Xmol)[iphi,:,:]),np.arange(0,11,0.1))
     #cs2 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoG)[iphi,:,:]),np.arange(-8,3,0.1))
     #cs2 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoH2)[iphi,:,:]),np.arange(0,11,0.1))
     cs3 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10(disk.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
+    print(np.min(disk.sig_col[0,:,:]),np.max(disk.sig_col[0,:,:]))
     #manual_locations=[(300,30),(250,60),(180,50),(180,70),(110,60),(45,30)]
     cs3 = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,disk.T[iphi,:,:],(10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,200,300,400),colors='k',linestyles='--')
     cs = plt.contour(disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,tau[iphi,:,:],(1,),colors='k',linestyles='--',linewidths=3)
@@ -622,7 +623,7 @@ def plot_tau1(disk,tau,tau_dust):
     plt.plot(disk.rf/disk.AU,disk.calcH()/disk.AU,color='k')
     #plt.clabel(cs3,fmt='%1i',manual=manual_locations)
 
-    iphi=59#74#32
+    iphi=21#74#32
     cs2 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoG/disk.Xmol)[iphi,:,:]),np.arange(0,11,0.1)) #H2 number dens in region with mol
     #cs2 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoG)[iphi,:,:]),np.arange(-8,3,0.1)) #mol number density
     #cs2 = plt.contour(-disk.r[iphi,:,:]/disk.AU,disk.Z[iphi,:,:]/disk.AU,np.log10((disk.rhoH2)[iphi,:,:]),np.arange(0,11,0.1)) #H2 number density throughout disk
