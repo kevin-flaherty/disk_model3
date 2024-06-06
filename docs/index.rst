@@ -17,6 +17,12 @@ To install para-disk clone the github repository:
    git clone https://github.com/kevin-flaherty/disk_model3.git
    cd disk_model3
 
+.. code-block::
+
+    git clone https://github.com/richteague/disksurf.git
+    cd disksurf
+    pip install .
+
 To guide you through **para-disk** we've created a :doc:`Guide` with step-by-step
 instructions for running the code. Check out :doc:`model.ipynb` to see a description of the 
 parametric model that underlies the code, and :doc:`under-the-hood` for a 
