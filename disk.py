@@ -63,12 +63,10 @@ class Disk:
     def __init__(self,q=-0.5,McoG=0.09,pp=1.,Rin=1.,Rout=1000,Rc=150.,incl=51.5,
                  Mstar=2.3,Xco=1e-4,vturb=0.01,Zq0=33.9,Tmid0=19,Tatm0=69.3,sigbound=[.79,1000],
                  Rabund=[10,1000],handed=-1,nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,
-                 exp_temp=False,line='co',ring=None,include_selfgrav=False,params=[],obs=[] ):
+                 exp_temp=False,line='co',ring=None,include_selfgrav=False):
 
         ### Changed the init function so that it is easier to specify a subset of the parameters
         ### while keeping the rest as defaults.
-        ### params and obs are kept for some backwards compatability,
-        ### but is does require x=Disk(params=[...]) instead of x=Disk(params)
         params = [q,McoG,pp,Rin,Rout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,sigbound,Rabund,handed]
         obs = [nr,nphi,nz,zmax]
         self.ring=ring

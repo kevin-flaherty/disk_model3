@@ -49,8 +49,14 @@ class Disk:
     Tco = 19.    # - freeze out
     sigphot = 0.79*sc   # - photo-dissociation column
 
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1],obs=[180,131,300,170],rtg=True,vcs=True,exp_temp=False,line='co',ring=None,include_selfgrav=False):
-
+#    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1],obs=[180,131,300,170],rtg=True,vcs=True,exp_temp=False,line='co',ring=None,include_selfgrav=False):
+    def __init__(self,q=-0.5,McoG=0.09,pp=1.,Rin=10.,Rout=1000.,Rc=150.,incl=51.5,
+                 Mstar=2.3,Xco=1e-4,vturb=0.01,Zq0=33.9,Tmid0=19.,Tatm0=69.3,
+                 handed=-1,nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,exp_temp=True,
+                 line='co',ring=None,include_selfgrav=False):
+        
+        params=[q,McoG,pp,Rin,Rout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,handed]
+        obs=[nr,nphi,nz,zmax]
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
