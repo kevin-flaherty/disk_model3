@@ -424,7 +424,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
             for j in range(len(obsv2)):
                 absorption = np.exp(-tau[i]*np.exp((-(obsv2[j]-velocity_c[i])**2.)/(2*sigma_c[i]**2.)))
                 im2[:,:,j]*=absorption
-    
+    ### Does cloud absorption work for cleaned model images, or just direct model images??
 
     if hanning:
         im2 = perform_hanning(im2)
