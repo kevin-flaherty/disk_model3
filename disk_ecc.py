@@ -51,9 +51,15 @@ class Disk:
     Tco = 19.    # - freeze out
     sigphot = 0.79*sc   # - photo-dissociation column
 
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0,0,[.76,1000],[10,800]],obs=[180,131,300,170],rtg=True,vcs=True,line='co',ring=None):
-
-        tb = time.clock()
+#    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0,0,[.76,1000],[10,800]],obs=[180,131,300,170],rtg=True,vcs=True,line='co',ring=None):
+    def __init__(self,q=-0.5,McoG=0.09,pp=1.,Ain=10.,Aout=1000.,Rc=150.,incl=51.5,
+                 Mstar=2.3,Xco=1e-4,vturb=0.01,Zq0=33.9,Tmid0=19.,Tatm0=69.3,
+                 handed=-1,ecc=0.,aop=0.,sigbound=[.79,1000],Rabund=[10,800],
+                 nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,line='co',ring=None):
+        
+        params=[q,McoG,pp,Ain,Aout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,handed,ecc,aop,sigbound,Rabund]
+        obs=[nr,nphi,nz,zmax]
+        #tb = time.clock()
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
@@ -62,8 +68,8 @@ class Disk:
         if rtg:
             self.set_rt_grid()
             self.set_line(line=line,vcs=vcs)
-        tf = time.clock()
-        print("disk init took {t} seconds".format(t=(tf-tb)))
+        #tf = time.clock()
+        #print("disk init took {t} seconds".format(t=(tf-tb)))
 
     def set_params(self,params):
         'Set the disk structure parameters'
@@ -777,7 +783,7 @@ class Disk:
         plt.figure()
         plt.rc('axes',lw=2)
         cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoG[0,:,:])+4,np.arange(0,11,0.1))
-        cs2 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoG[self.nphi/2,:,:])+4,np.arange(0,11,0.1))
+        cs2 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoG[int(self.nphi/2),:,:])+4,np.arange(0,11,0.1))
         ax = plt.gca()
         for tick in ax.xaxis.get_major_ticks():
             tick.label1.set_fontsize(14)
@@ -788,20 +794,20 @@ class Disk:
         if sound_speed:
             cs = self.r*self.Omg#np.sqrt(2*self.kB/(self.Da*self.mCO)*self.T)
             cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,cs[0,:,:]/Disk.kms,100,colors='k')
-            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,cs[self.nphi/2.,:,:]/Disk.kms,100,colors='k')
+            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,cs[int(self.nphi/2.),:,:]/Disk.kms,100,colors='k')
             plt.clabel(cs3)
         elif beta is not None:
             cs = np.sqrt(2*self.kB/(self.Da*self.mu)*self.T)
             rho = (self.rhoG+4)*self.mu*self.Da #mass density
             Bmag = np.sqrt(8*np.pi*rho*cs**2/beta) #magnetic field
             cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(Bmag[0,:,:]),20)
-            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(Bmag[self.nphi/2.,:,:]),20)
+            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(Bmag[int(self.nphi/2.),:,:]),20)
         elif dust:
             cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoD[0,:,:]),100,colors='k',linestyles='--')
-            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoD[self.nphi/2.,:,:]),100,colors='k',linestyles='--')
+            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoD[int(self.nphi/2.),:,:]),100,colors='k',linestyles='--')
         else:
             cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,self.T[0,:,:],(20,40,60,80,100,120),colors='k',ls='--')
-            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,self.T[self.nphi/2.,:,:],(20,40,60,80,100,120),colors='k',ls='--')
+            cs3 = plt.contour(-self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,self.T[int(self.nphi/2.),:,:],(20,40,60,80,100,120),colors='k',ls='--')
             plt.clabel(cs3,fmt='%1i')
         plt.colorbar(cs2,label='log n')
         plt.xlim(-1*rmax,rmax)

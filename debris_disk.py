@@ -59,12 +59,19 @@ class Disk:
     sigphot = 0.79*sc                  # - photo-dissociation column
 
 
-    def __init__(self,
-        params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,[.79,1000],[10.,1000], -1, 500, 500, 0.09, 0.1],
-        obs=[180,131,300,170],
-        rtg=True,
-        vcs=True,sh_relation='linear',line='co',ring=None, annulus=None):
+#    def __init__(self,
+#        params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,[.79,1000],[10.,1000], -1, 500, 500, 0.09, 0.1],
+#        obs=[180,131,300,170],
+#        rtg=True,
+#        vcs=True,sh_relation='linear',line='co',ring=None, annulus=None):
+    def __init__(self,q=-0.5,McoG=0.09,pp=1.,Rin=10.,Rout=1000.,Rc=150.,incl=51.5,Mstar=2.3,
+                 Xco=1e-4,vturb=0.01,Zq0=33.9,sigbound=[.79,1000],Rabund=[10,1000],
+                 handed=-1,r_gridsize=500,z_gridsize=500,Lstar=1.,sh_param=.1,
+                 nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,
+                 sh_relation='linear',line='co',ring=None,annulus=None):
 
+        params=[q,McoG,pp,Rin,Rout,Rc,incl,Mstar,Xco,vturb,Zq0,sigbound,Rabund,handed,r_gridsize,z_gridsize,Lstar,sh_param]
+        obs=[nr,nphi,nz,zmax]
         self.ring=ring
         self.annulus = annulus
         self.set_obs(obs)   # set the observational parameters
