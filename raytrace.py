@@ -153,7 +153,9 @@ def dustmodel(disk,nu):
 
     return trapz(arg,S,axis=2),tau
 
-def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.0,0.0],modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False):
+def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.0,0.0],
+                modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False,
+                L_cloud=False, tau = [0,], sigma_c = [6,], velocity_c =[2,]):
     '''Run all of the model calculations given a disk object.
     Outputs are a fits file with the model images, along with visibility files (one in miriad format and one in fits format) for this model
 
@@ -230,6 +232,18 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     :param hanning: (default=False)
     Set to True to perform hanning smoothing on a spectrum. Hanning smoothing is designed to reduce Gibbs ringing, which is associated with the finite time sampling that is used in the generation of a spectrum within an interferometer. Hanning smoothing is included as a running average that replaces the flux in channel i with 25% of the flux in channel i-1, 50% of the flux in channel i, and 25% of the flux in channel i+1.
+
+    :param L_cloud: (default = False)
+    Set to True to include cloud absorption along the line of sight. This is for modeling absorption from an intervening cold molecular cloud. The absorption is assumed to follow a Gaussian shape, with a specified optical depth (tau), line width (sigma_c), and velocity (velocity). More than one cloud absorption can be included.
+
+    :param tau: (default=[0,])
+    A list of optical depths for the intervening cloud absorption.
+
+    :param sigma_c: (default=[0,])
+    A list of velocity widths, in units of km/s, for the cloud absorption.
+
+    :param velocity_c: (default=[0,])
+    A list of central velocities, in units of km/s, in the same reference frame as the observations, for the cloud absorption.
 
 '''
 
@@ -398,6 +412,19 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
                         im2[ix,iy,:] = np.interp(obsv2,velo,im[ix,iy,:])
         else:
             im2=im
+            obsv2=velo
+
+    ### Incorporate cloud absorption after interpolating onto the velocity scale of the data, but before Hanning smoothing or binning down.
+    ### This is taken from the work done by Berit Olsson for her thesis. 
+    if L_cloud and isgas:
+        #First check that tau, sigma_c, and velocity_c have the same length (i.e. the same number of clouds have been specified with each parameter)
+        if len(tau)!=len(sigma_c) or len(tau)!=len(velocity_c):
+            raise ValueError('Cloud parameters do not have the same length! tau has {:0.0f} parameters, sigma_c has {:0.0f} parameters, and velocity_c has {:0.0f} parameters'.format(len(tau),len(sigma_c),len(velocity_c)))
+        for i in range(len(tau)):
+            for j in range(len(obsv2)):
+                absorption = np.exp(-tau[i]*np.exp((-(obsv2[j]-velocity_c[i])**2.)/(2*sigma_c[i]**2.)))
+                im2[:,:,j]*=absorption
+    
 
     if hanning:
         im2 = perform_hanning(im2)
