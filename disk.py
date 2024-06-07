@@ -62,12 +62,13 @@ class Disk:
     #             exp_temp=False,line='co',ring=None,include_selfgrav=False):
     def __init__(self,q=-0.5,McoG=0.09,pp=1.,Rin=1.,Rout=1000,Rc=150.,incl=51.5,
                  Mstar=2.3,Xco=1e-4,vturb=0.01,Zq0=33.9,Tmid0=19,Tatm0=69.3,sigbound=[.79,1000],
-                 Rabund=[10,1000],handed=-1,nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,
+                 Rabund=[10,1000],handed=-1,vtalpha=0,vtsig=0,
+                 nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,
                  exp_temp=False,line='co',ring=None,include_selfgrav=False):
 
         ### Changed the init function so that it is easier to specify a subset of the parameters
         ### while keeping the rest as defaults.
-        params = [q,McoG,pp,Rin,Rout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,sigbound,Rabund,handed]
+        params = [q,McoG,pp,Rin,Rout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,sigbound,Rabund,handed,vtalpha,vtsig]
         obs = [nr,nphi,nz,zmax]
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
@@ -103,6 +104,14 @@ class Disk:
             # - inner/outer ring, width of inner/outer ring
             self.Rabund=[params[14][0]*Disk.AU,params[14][1]*Disk.AU,params[14][2]*Disk.AU,params[14][3]*Disk.AU,params[14][4]*Disk.AU,params[14][5]*Disk.AU]
         self.handed = params[15]            #
+
+        #vturb power law radially and Gaussian with height (from Ashraf Dhabhi's thesis)
+        self.vtalpha = params[16] # power law for radial dependency
+        self.vtsig = params[17] #scale factory by which we multiply width for the height dependency Gaussian
+        self.vvtr = (self.vtalpha != 0) #Boolean describing whether there is a radial dependency
+        self.vvtz = (self.vtsig != 0) #Boolean describing whether there is a height dependency
+        self.vvt = self.vvtr | self.vvtz # Boolean describing whether there is any spatial dependency
+
         self.costhet = np.cos(self.thet)  # - cos(i)
         self.sinthet = np.sin(self.thet)  # - sin(i)
         if self.ring is not None:
@@ -137,6 +146,9 @@ class Disk:
 
         # rcf[0][:] = radius at all z for first radial bin
         # zcf[0][:] = z in first radial bin
+
+        # Build a turbulence matrix of the correct dimensions that is constant in all of the disk (AD)
+        vt = np.outer(np.ones(nrc),np.ones(nzc))*self.vturb/Disk.kms
 
 
         # Interpolate dust temperature and density onto cylindrical grid
@@ -227,7 +239,27 @@ class Disk:
         # Set default freeze-out temp
         self.Tco = Disk.Tco
 
+        # Defining a sound speed matrix using the temperature matrix (AD)
+        cs = np.sqrt((Disk.kB*tempg)/Disk.m0)
+        # Defining a vector that approximates the pressure scale height at different radii using the midplane sound speed
+        est = cs[:,0]/Omg[:,0]
+        self.estimH = []
+        for e in est:
+            self.estimH += [nzc*[e]]
+        self.estimH = np.array(self.estimH)
 
+        if self.vvtr:
+            #In case of radial dependency
+            vtr = np.power((rf/(150*Disk.AU)),self.vtalpha)
+            vt = vt*vtr[:,np.newaxis]
+            self.vtrv = vtr
+            print('Radial dependence')
+        if self.vvtz:
+            # In case of height dependency
+            vtz = 1-np.exp(-np.power(zcf,2)/(2*np.power(self.vtsig*self.estimH,2)))
+            vt = vt*vtz
+            self.vtzv = vtz
+            print('height dependence')
 
         self.rf = rf
         self.nrc = nrc
@@ -235,6 +267,7 @@ class Disk:
         self.nzc = nzc
         self.tempg = tempg
         self.Omg0 = Omg
+        self.vtm=vt
 
 
 
@@ -287,6 +320,7 @@ class Disk:
         tT = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
         tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
+        vt = ndimage.map_coordinates(self.vtm,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #AD
 
         tT[notdisk]=2.73
         self.r = tr
@@ -318,13 +352,15 @@ class Disk:
         #temperature and turbulence broadening
         #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
         if vcs:
-            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT)) #vturb proportional to cs
+            tdBV = np.sqrt((1+vt**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT)) #AD
+            #tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT)) #vturb proportional to cs
             #self.r = tr
             #self.Z = tdiskZ
             #vt = self.doppler()*np.sqrt(Disk.Da*Disk.mCO/(Disk.Da*Disk.mu))
             #tdBV = np.sqrt((1+vt**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT))
         else:
-            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
+            #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
+            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+(vt*Disk.kms)**2) #AD
 
 
         # store disk
@@ -340,6 +376,7 @@ class Disk:
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
+        self.vt = vt #AD
         #self.sig_col=tsig_col
         #self.rhoH2 = trhoH2
 
@@ -368,11 +405,13 @@ class Disk:
         if vcs:
             #temperature and turbulence broadening
             #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mHCO)*tT+self.vturb**2)
-            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T)) #vturb proportional to cs
+            #tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T)) #vturb proportional to cs
+            tdBV = np.sqrt((1+self.vt**2.)*(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T)) #vturb proportional to cs, AD
 
         else: #assume line.lower()=='co'
             #temperature and turbulence broadening
-            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T+self.vturb**2)
+            #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T+self.vturb**2)
+            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T+(self.vt*Disk.kms)**2) #AD
 
 
         self.dBV=tdBV
