@@ -706,11 +706,18 @@ def flux_range(disk,cube3,r0,height=True):
     flux_all = flux_all[w]
 
     wuse = flux_all>.05*flux_all.max()
-    w = np.argsort(ztau_all[wuse])
+    #w = np.argsort(ztau_all[wuse])
     if height:
-        print('R, Z(25%), Z(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
+        ztau_all = np.abs(ztau_all)
+        print('R, Z(5%), Z(16%), Z(25%), Z(50%), Z(75%), Z(84%), Z(95%): {:0.1f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}'
+              .format(r0/disk.AU,np.percentile(ztau_all[wuse],5),np.percentile(ztau_all[wuse],16),np.percentile(ztau_all[wuse],25),np.percentile(ztau_all[wuse],50),
+                      np.percentile(ztau_all[wuse],75),np.percentile(ztau_all[wuse],84),np.percentile(ztau_all[wuse],95)))
+        #print('R, Z(25%), Z(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
     else:
-        print('R, T(25%), T(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
+        print('R, T(5%), T(16%), T(25%), T(50%), T(75%), T(84%), T(95%): {:0.1f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}, {:0.2f}'
+              .format(r0/disk.AU,np.percentile(ztau_all[wuse],5),np.percentile(ztau_all[wuse],16),np.percentile(ztau_all[wuse],25),np.percentile(ztau_all[wuse],50),
+                      np.percentile(ztau_all[wuse],75),np.percentile(ztau_all[wuse],84),np.percentile(ztau_all[wuse],95)))
+        #print('R, T(25%), T(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
 
 
 def mol_dat(file='co.dat'):
