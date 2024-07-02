@@ -9,6 +9,7 @@ import numpy as np
 from astropy import constants as const
 from scipy.integrate import cumtrapz,trapz
 import math
+import matplotlib.pyplot as plt
    #Define useful constants
 AU = const.au.cgs.value      # - astronomical unit (cm)
 c = const.c.cgs.value      # - speed of light (cm/s)
@@ -356,12 +357,14 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     if extra == 1 :
         # plot tau=1 surface in central channel
         plot_tau1(disk,cube2[:,:,:,int(nchans/2-1)],cube3[:,:,:,int(nchans/2-1)])
-    if (extra == 2.1) or (extra==2.2):
+    if (extra == 2.1) or (extra==2.2) or (extra == 2.3):
         for r in range(10,500,20):#20
-            if extra > 2.1:
+            if extra == 2.2:
                 flux_range(disk,cube3,r,height=False) #cube3 is cumulative flux along each sight line [nr,nphi,ns,nchan]
-            else:
+            elif extra == 2.1:
                 flux_range(disk,cube3,r,height=True)
+        if extra == 2.3:
+            map_flux(disk,cube3)
     if extra>2.5:
         print('*** Creating tau=1 image ***')
         ztau1tot=np.zeros((disk.nphi,disk.nr,nchans))
@@ -632,7 +635,6 @@ def findtau1(disk,tau,Inu,cube3,flag=0.):
 
 def plot_tau1(disk,tau,tau_dust):
     '''Plot the tau=1 surface on top of the disk structure plot'''
-    import matplotlib.pyplot as plt
     #ztau1 = findtau1(disk,tau,Inu)
     plt.figure()
     plt.rc('axes',lw=2)
@@ -719,6 +721,27 @@ def flux_range(disk,cube3,r0,height=True):
                       np.percentile(ztau_all[wuse],75),np.percentile(ztau_all[wuse],84),np.percentile(ztau_all[wuse],95)))
         #print('R, T(25%), T(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))])
 
+def map_flux(disk,cube3):
+    '''Create a 2D map of the disk, showing the percentage of the flux coming from each r-z. It also includes contours
+    showing the gas temperature. This complements flux_range, in that flux_range gives the percentiles for the distribution
+    at each radius, while this function shows the full 2D map.'''
+
+    cube3v = cube3-np.roll(cube3,1,axis=2) #cube3 is cumulative flux along the line of sight. This calculates the flux added at each step.
+    cube3v[cube3v<0] = 0 #some 
+    flux_collapse = cube3v.sum(axis=3)
+    flux_collapse[flux_collapse==0] = 1e-50
+    plt.figure()
+    p=plt.hist(np.log10(flux_collapse).flatten(),1000,histtype='step')
+    #print(flux_collapse.max(),flux_collapse.min())
+    levels = 100#np.arange(50)*(np.log10(flux_collapse.max())+50)/50-50
+
+    plt.figure()
+    cs = plt.tricontourf(disk.r.flatten()/disk.AU,disk.Z.flatten()/disk.AU,np.log10(flux_collapse).flatten(),(-51,-49,-30,-25,-15,-10))
+    plt.xlim(0,500)
+    plt.ylim(-170,170)
+    plt.xlabel('R (au)')
+    plt.ylabel('Z (au)')
+    cb = plt.colorbar(cs)
 
 def mol_dat(file='co.dat'):
     import numpy as np
