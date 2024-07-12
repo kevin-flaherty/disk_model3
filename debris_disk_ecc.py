@@ -458,40 +458,65 @@ class Disk:
         #tst=time.clock()
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
-        Smin = 1*Disk.AU                 # offset from zero to log scale
-        if self.thet > np.arctan(self.Aout/self.zmax):
-            Smax = 2*self.Aout/self.sinthet
-        else:
-            Smax = 2.*self.zmax/self.costhet       # los distance through disk
-        Smid = Smax/2.                    # halfway along los
-        ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
+        #Smin = 1*Disk.AU                 # offset from zero to log scale
+        #if self.thet > np.arctan(self.Aout/self.zmax):
+        #    Smax = 2*self.Aout/self.sinthet
+        #else:
+        #    Smax = 2.*self.zmax/self.costhet       # los distance through disk
+        #Smid = Smax/2.                    # halfway along los
+        #ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
         #sky coordinates
         #R = np.logspace(np.log10(self.Ain*(1-self.ecc)),np.log10(self.Aout*(1+self.ecc)),self.nr)
         R = np.linspace(0,self.Aout*(1+self.ecc),self.nr) #******* not on cluster*** #
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
-        foo = np.floor(self.nz/2)
+        #foo = np.floor(self.nz/2)
 
         #S_old = np.concatenate([Smid+Smin-10**(np.log10(Smid)+np.log10(Smin/Smid)*np.arange(foo)/(foo)),Smid-Smin+10**(np.log10(Smin)+np.log10(Smid/Smin)*np.arange(foo)/(foo))])
-        S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin #*** not on cluster**
+        #S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin #*** not on cluster**
 
         #print("grid {t}".format(t=time.clock()-tst))
         # Basically copy S_old, with length nz,  into each column of a nphi*nr*nz matrix
-        S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
+        #S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
 
         # arrays in [phi,r,s] on sky coordinates
         X = (np.outer(R,np.cos(phi))).transpose()
         Y = (np.outer(R,np.sin(phi))).transpose()
 
+        #Use a rotation matrix to transform between radiative transfer grid and physical structure grid
+        if np.abs(self.thet) > np.arctan(self.Aout*(1+self.ecc)/self.zmax):
+            zsky_max = np.abs(2*self.Aout*(1+self.ecc)/self.sinthet)
+        else:
+            zsky_max = 2*(self.zmax/self.costhet)
+        zsky = np.arange(self.nz)/self.nz*(-zsky_max)+zsky_max/2.
+        
+        tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
+        tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
+        if (self.thet<np.pi/2) & (self.thet>0):
+            theta_crit = np.arctan((self.Aout*(1+self.ecc)+tdiskY)/(self.zmax-tdiskZ))
+            S = (self.zmax-tdiskZ)/self.costhet
+            S[(theta_crit<self.thet)] = ((self.Aout*(1+self.ecc)+tdiskY[(theta_crit<self.thet)])/self.sinthet)
+        elif self.thet>np.pi/2:
+            theta_crit = np.arctan((self.Aout*(1+self.ecc)+tdiskY)/(self.zmax+tdiskZ))
+            S = -(self.zmax+tdiskZ)/self.costhet
+            S[(theta_crit<(np.pi-self.thet))] = ((self.Aout*(1+self.ecc)+tdiskY[(theta_crit<(np.pi-self.thet))])/self.sinthet)
+        elif (self.thet<0) & (self.thet>-np.pi/2):
+            theta_crit = np.arctan((self.Aout*(1+self.ecc)-tdiskY)/(self.zmax-tdiskZ))
+            S = (self.zmax-tdiskZ)/self.costhet
+            S[(theta_crit<np.abs(self.thet))] = -((self.Aout*(1+self.ecc)-tdiskY[(theta_crit<np.abs(self.thet))])/self.sinthet)
+
+
         # transform grid to disk coordinates
-        tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
-        if self.thet > np.arctan(self.Aout/self.zmax):
-            tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
-        tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
+        #if self.thet > np.arctan(self.Aout/self.zmax):
+        #    tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tr = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
         tphi = np.arctan2(tdiskY,X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))%(2*np.pi)
         ###### should be real outline? requiring a loop over f or just Aout(1+ecc)######
         notdisk = (tr > self.Aout*(1.+self.ecc)) | (tr < self.Ain*(1-self.ecc))  # - individual grid elements not in disk
-        xydisk =  tr[:,:,0] <= self.Aout*(1.+self.ecc)+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
+        isdisk = (tr>self.Ain*(1-self.ecc)) & (tr<self.Aout*(1+self.ecc)) & (np.abs(tdiskZ)<self.zmax)
+        S -= S[isdisk].min() #Reset the min S to 0
+        #xydisk =  tr[:,:,0] <= self.Aout*(1.+self.ecc)+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
         self.r = tr
 
 
@@ -597,7 +622,7 @@ class Disk:
         #self.Omg = Omg#Omgy #need to combine omgx,y,z
         self.vel = tvel
         self.i_notdisk = notdisk
-        self.i_xydisk = xydisk
+        #self.i_xydisk = xydisk
         #self.rhoH2 = trhoH2 #*** not on cluster ***
         #self.sig_col=tsig_col
         #self.Xmol = Xmol

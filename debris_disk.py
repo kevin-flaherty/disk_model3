@@ -223,23 +223,23 @@ class Disk:
         rmax = self.Rout if self.annulus is None  \
             else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]
 
-        Smin = 1*Disk.AU                 # offset from zero to log scale
-        if self.thet > np.arctan(rmax/self.zmax):
-            Smax = 2*rmax/self.sinthet
-        else:
-            Smax = 2.*self.zmax/self.costhet       # los distance through disk
-        Smid = Smax/2.                    # halfway along los
-        ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
+        #Smin = 1*Disk.AU                 # offset from zero to log scale
+        #if self.thet > np.arctan(rmax/self.zmax):
+        #    Smax = 2*rmax/self.sinthet
+        #else:
+        #    Smax = 2.*self.zmax/self.costhet       # los distance through disk
+        #Smid = Smax/2.                    # halfway along los
+        #ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
 
         R   = np.linspace(0,rmax,self.nr)
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
-        foo = np.floor(self.nz/2)
+        #foo = np.floor(self.nz/2)
 
-        S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin
+        #S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin
 
 
         # Basically copy S_old, with length nz,  into each column of a nphi*nr*nz matrix
-        S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
+        #S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
 
         # arrays in [phi,r,s]
         X = (np.outer(R,np.cos(phi))).transpose()
@@ -250,10 +250,32 @@ class Disk:
         #tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
         #tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
 
-        tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
-        if self.thet > np.arctan(self.Rout/self.zmax):
-            tdiskZ -= (Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
-        tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #Use a rotation matrix to transform between radiative transfer grid and physical structure grid
+        if np.abs(self.thet) > np.arctan(self.Rout/self.zmax):
+            zsky_max = np.abs(2*self.Rout/self.sinthet)
+        else:
+            zsky_max = 2*(self.zmax/self.costhet)
+        zsky = np.arange(self.nz)/self.nz*(-zsky_max)+zsky_max/2.
+        
+        tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
+        tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
+        if (self.thet<np.pi/2) & (self.thet>0):
+            theta_crit = np.arctan((self.Rout+tdiskY)/(self.zmax-tdiskZ))
+            S = (self.zmax-tdiskZ)/self.costhet
+            S[(theta_crit<self.thet)] = ((self.Rout+tdiskY[(theta_crit<self.thet)])/self.sinthet)
+        elif self.thet>np.pi/2:
+            theta_crit = np.arctan((self.Rout+tdiskY)/(self.zmax+tdiskZ))
+            S = -(self.zmax+tdiskZ)/self.costhet
+            S[(theta_crit<(np.pi-self.thet))] = ((self.Rout+tdiskY[(theta_crit<(np.pi-self.thet))])/self.sinthet)
+        elif (self.thet<0) & (self.thet>-np.pi/2):
+            theta_crit = np.arctan((self.Rout-tdiskY)/(self.zmax-tdiskZ))
+            S = (self.zmax-tdiskZ)/self.costhet
+            S[(theta_crit<np.abs(self.thet))] = -((self.Rout-tdiskY[(theta_crit<np.abs(self.thet))])/self.sinthet)
+
+        #tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
+        #if self.thet > np.arctan(self.Rout/self.zmax):
+        #    tdiskZ -= (Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
 
         # transform grid
         tr      = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
@@ -269,7 +291,9 @@ class Disk:
             if self.Rin > self.annulus_Rout:
                 notdisk = notdisk | ((tr > self.annulus_Rout) & (tr < self.Rin))
 
-        xydisk  =  tr[:,:,0] <= rmax+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
+        isdisk = (tr>rmin) & (tr<rmax) & (np.abs(tdiskZ)<self.zmax)
+        S -= S[isdisk].min() #Reset the min S to 0
+        #xydisk  =  tr[:,:,0] <= rmax+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
 
 
         # interpolate to calculate disk temperature and densities
@@ -321,7 +345,7 @@ class Disk:
         self.T = tT
         self.dBV = tdBV
         self.i_notdisk = notdisk
-        self.i_xydisk = xydisk
+        #self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
         self.sigmaD = tsigmaD
         self.rhoD = tDD
