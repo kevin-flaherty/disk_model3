@@ -275,42 +275,131 @@ class Disk:
     def set_rt_grid(self,vcs=True):
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
-        Smin = 1*Disk.AU                 # offset from zero to log scale
-        if self.thet > np.arctan(self.Rout/self.zmax):
-            Smax = 2*self.Rout/self.sinthet
-        else:
-            Smax = 2.*self.zmax/self.costhet       # los distance through disk
-        Smid = Smax/2.                    # halfway along los
-        ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
+        ### July 2024: A student of AMH contacted me about a 'triple-decker' sandwich behaviour, with very low flux, among edge-on debris disks
+        ### This shows up more strongly with lower disk masses. It seems to slowly appear as you increase inclination.
+        ### I tried changing Smin to 0, and increasing nz (which increases the sampling along S), and that doesn't remove the effect.
+        ### I tried taking out the notdisk portion, and that doesn't work. 
+        ## (1) Recover the coordinate transformation
+        ## (2) Look at the rotation matrix version to see if that is better
+        ## (3) Put together a radmc3d (or other code??) model of an edge-on disk as a test
+        ### (2) Rotation matrix adds 'spikes' of large flux in nearly face-on systems [Testing i=10,45,60,80]
+        ### Rotation matrix produces *much* stronger flux for i=80. This is slightly noticeable at i=60.
+        ### There is a vertical offset between the rotation matrix model and the old model for i=60...
+        ### For a protoplanetary disk, the flux per pixel is similar between the rotation matrix and the old model, but the area over which emission comes from is *very* different, with the rotation matrix producing more extended emission.
+        ### Similar behavior at i=60 for the protoplanetary disk, also with the vertical offset (the old model is shifted downwards)
+        #Smin = 1*Disk.AU                 # offset from zero to log scale
+        #if self.thet > np.arctan(self.Rout/self.zmax):
+        #    Smax = 2*self.Rout/self.sinthet
+        #    print('*Edge*-on disk')
+        #else:
+        #    Smax = 2.*self.zmax/self.costhet       # los distance through disk
+        #print('Smax: ',Smax/self.AU)
+        #Smid = Smax/2.                    # halfway along los
+        #ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
+        #print('ytop: ',ytop/self.AU)
 
         R = np.linspace(0,self.Rout,self.nr)
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
-        foo = np.floor(self.nz/2)
+        #foo = np.floor(self.nz/2)
 
-        S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin
+        #S_old = np.arange(2*foo)/(2*foo)*(Smax-Smin)+Smin
 
 
         # Basically copy S_old, with length nz,  into each column of a nphi*nr*nz matrix
-        S = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
+        #S2 = (S_old[:,np.newaxis,np.newaxis]*np.ones((self.nr,self.nphi))).T
+        #print('S2 min, max: ',S2.min()/self.AU,S2.max()/self.AU)
 
         # arrays in [phi,r,s]
         X = (np.outer(R,np.cos(phi))).transpose()
         Y = (np.outer(R,np.sin(phi))).transpose()
 
         #Use a rotation matrix to transform between radiative transfer grid and physical structure grid
-        #zsky = Smid-S
-        #tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
-        #tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
+        if np.abs(self.thet) > np.arctan(self.Rout/self.zmax):
+            zsky_max = np.abs(2*self.Rout/self.sinthet)
+            #print('i>90,edge zsky, max')
+        else:
+            zsky_max = 2*(self.zmax/self.costhet)
+            #print('i<90,top zsky,max')
+        zsky = np.arange(self.nz)/self.nz*(-zsky_max)+zsky_max/2.
+        #zsky = np.arange(self.nz)/(self.nz)*(-2*self.Rout)+self.Rout#Smid-S
+        
+        tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
+        tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
+        #theta_crit = np.arctan((self.Rout+tdiskY)/(self.Rout-tdiskZ))
+        #S = (self.Rout-tdiskZ)/self.costhet
+        #theta_crit = np.arctan((self.Rout+tdiskY)/(self.zmax-tdiskZ))
+        if (self.thet<np.pi/2) & (self.thet>0):
+            theta_crit = np.arctan((self.Rout+tdiskY)/(self.zmax-tdiskZ))
+            S = (self.zmax-tdiskZ)/self.costhet
+        #print('S (rotation) min, max: ',S.min()/self.AU,S.max()/self.AU)
+            S[(theta_crit<self.thet)] = ((self.Rout+tdiskY[(theta_crit<self.thet)])/self.sinthet)
+            #print(theta_crit)
+            #print((theta_crit<self.thet).shape)
+        elif self.thet>np.pi/2:
+            theta_crit = np.arctan((self.Rout+tdiskY)/(self.zmax+tdiskZ))
+            #print(theta_crit)
+            #print((theta_crit<self.thet).shape)
+            S = -(self.zmax+tdiskZ)/self.costhet
+            #print(S.shape)
+            S[(theta_crit<(np.pi-self.thet))] = ((self.Rout+tdiskY[(theta_crit<(np.pi-self.thet))])/self.sinthet)
+        elif (self.thet<0) & (self.thet>-np.pi/2):
+            theta_crit = np.arctan((self.Rout-tdiskY)/(self.zmax-tdiskZ))
+            S = (self.zmax-tdiskZ)/self.costhet
+            S[(theta_crit<np.abs(self.thet))] = -((self.Rout-tdiskY[(theta_crit<np.abs(self.thet))])/self.sinthet)
+        #print('S (rotation+correction) min, max: ',S.min()/self.AU,S.max()/self.AU)
+        #print('Rout,zmax: ',self.Rout/self.AU,self.zmax/self.AU)
 
         # transform grid
-        tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
-        if self.thet > np.arctan(self.Rout/self.zmax):
-            tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
-        tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S2
+        #if self.thet > np.arctan(self.Rout/self.zmax):
+        #    tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #tdiskY = ytop - self.sinthet*S2 + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
+        #tr2 = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY2**2)
         tr = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
-        notdisk = (tr > self.Rout) | (tr < self.Rin)  # - individual grid elements not in disk
-        xydisk =  tr[:,:,0] <= self.Rout+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
+        notdisk = (tr > self.Rout) | (tr < self.Rin) | (np.abs(tdiskZ)>self.zmax) # - individual grid elements not in disk
+        isdisk = (tr>self.Rin) & (tr<self.Rout) & (np.abs(tdiskZ)<self.zmax)
+        #S=S2
+        S -= S[isdisk].min() #Reset the min S to 0
+        #print('S (isdisk) min, max: ',S[isdisk].min()/self.AU,S[isdisk].max()/self.AU)
+        #xydisk =  tr[:,:,0] <= self.Rout+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
 
+        #print('Zdisk max, min: ',tdiskZ[isdisk].max()/self.AU,tdiskZ[isdisk].min()/self.AU)
+        #print('Rdisk max, min: ',tr[isdisk].max()/self.AU,tr[isdisk].min()/self.AU)
+        #isdisk2 = (tr2>self.Rin) & (tr2<self.Rout) & (np.abs(tdiskZ2)<self.zmax)
+        #print('Zdisk2 max, min: ',tdiskZ2[isdisk2].max()/self.AU,tdiskZ2[isdisk2].min()/self.AU)
+        #print('Rdisk2 max, min: ',tr2[isdisk2].max()/self.AU,tr2[isdisk2].min()/self.AU)
+        #plt.plot(tdiskZ.flatten()[::100]/self.AU,np.degrees(theta_crit).flatten()[::100],'.k')
+        #plt.plot(tr.flatten()[::100]/self.AU,np.degrees(theta_crit).flatten()[::100],'.k')
+        #plt.figure()
+        #plt.tricontourf(tr[isdisk].flatten()[::20]/self.AU,tdiskZ[isdisk].flatten()[::20]/self.AU,S[isdisk].flatten()[::20]/self.AU,100)
+        #plt.title('New grid')
+        #plt.xlabel('R (au)')
+        #plt.ylabel('Z (au)')
+        #plt.colorbar()
+        #plt.figure()
+        #plt.tricontourf(tr2[isdisk2].flatten()[::20]/self.AU,tdiskZ2[isdisk2].flatten()[::20]/self.AU,S2[isdisk2].flatten()[::20]/self.AU,100)
+        #plt.title('Old grid')
+        #plt.xlabel('R (au)')
+        #plt.ylabel('Z (au)')
+        #plt.colorbar()
+
+        #plt.figure()
+        #plt.subplot(131)
+        #plt.plot(tdiskZ[isdisk].flatten()[::293]/self.AU,S[isdisk].flatten()[::293]/self.AU,'.k')
+        #plt.plot(tdiskZ2[isdisk2].flatten()[::293]/self.AU,S2[isdisk2].flatten()[::293]/self.AU,'.r',alpha=.5)
+        #plt.legend(('New grid','Old grid'))
+        #plt.xlabel('Z (au)')
+        #plt.ylabel('S (au)')
+        #plt.subplot(132)
+        #plt.plot(tdiskY[isdisk].flatten()[::293]/self.AU,S[isdisk].flatten()[::293]/self.AU,'.k')
+        #plt.plot(tdiskY2[isdisk2].flatten()[::293]/self.AU,S2[isdisk2].flatten()[::293]/self.AU,'.r',alpha=.5)
+        #plt.xlabel('Y (au)')
+        #plt.ylabel('S (au)')
+        #plt.subplot(133)
+        #plt.plot(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)[isdisk].flatten()[::293]/self.AU,S[isdisk].flatten()[::293]/self.AU,'.k')
+        #plt.plot(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)[isdisk2].flatten()[::293]/self.AU,S2[isdisk2].flatten()[::293]/self.AU,'.r',alpha=.5)
+        #plt.xlabel('X (au)')
+        #plt.ylabel('S (au)')
 
         # interpolate to calculate disk temperature and densities
         #print('interpolating onto radiative transfer grid')
@@ -339,9 +428,9 @@ class Disk:
             self.Xmol[zap] = 1/5.*self.Xmol[zap]
 
         trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        trhoH2[notdisk] = 0
         trhoG = trhoH2*self.Xmol
         #trhoG[notdisk] = 0
-        trhoH2[notdisk] = 0
         self.rhoH2 = trhoH2
 
         self.add_dust_ring(self.Rin,self.Rout,0.,0.,initialize=True) #initialize dust density to 0
@@ -374,7 +463,7 @@ class Disk:
         self.rhoG = trhoG
         self.Omg = Omg
         self.i_notdisk = notdisk
-        self.i_xydisk = xydisk
+        #self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
         self.vt = vt #AD
         #self.sig_col=tsig_col
