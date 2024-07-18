@@ -206,6 +206,15 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
         real_model = np.zeros(real_obj.shape)
         imag_model = np.zeros(imag_obj.shape)
         for i in range(real_obj.shape[1]):
+            ### This steps through the model and data channels in order, which assumes that they go in the same order.
+            ### But the model always increases in velocity with channel, while for the data the velocity might *decrease* with channel.
+            ### I should account for when they are flipped, but do I do that here, or with the original model?
+            ### I could rename chanmin as vel0, and make it the velocity of the first channel, which would allow for negative channel steps
+            ### But then this wouldn't be backwards compatable...
+            ### Alternatively, I could check here to see how the data behaves, and adjust the model accordingly.
+            ### That would involve fewer changes to the code
+            ### Technically you can put in a negative channel step, and treat chanmin as the maximum velocity.
+            ### In that case, here I want to check that the chanstep in the data has a different sign than the model
             vis = gdouble.sampleImage(np.flipud(model[i,:,:]).byteswap().newbyteorder(),dxy,u_obj,v_obj)
             real_model[:,i] = vis.real
             imag_model[:,i] = vis.imag
@@ -422,8 +431,8 @@ def calc_chans(hdr,vsys):
 
     freq = (np.arange(hdr['naxis4'])+1-hdr['crpix4'])*hdr['cdelt4']+hdr['crval4']
     obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
-    chanstep = np.abs(obsv[1]-obsv[0])
-    nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
+    chanstep = (obsv[1]-obsv[0])
+    nchans = 2*np.ceil(np.abs(obsv-vsys).max()/np.abs(chanstep))+1
     chanmin = -(nchans/2.-.5)*chanstep
     return obsv,chanstep,int(nchans),chanmin
 
