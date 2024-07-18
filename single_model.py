@@ -177,9 +177,10 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
     freq0 = obj[0].header['crval4']
     u_obj,v_obj = (obj[0].data['UU']*freq0).astype(np.float64),(obj[0].data['VV']*freq0).astype(np.float64)
     vis_obj = (obj[0].data['data']).squeeze()
+    obj_hdr = obj[0].header
     if isgas:
-        if obj[0].header['telescop'] == 'ALMA':
-            if obj[0].header['naxis3'] == 2:
+        if obj_hdr['telescop'] == 'ALMA':
+            if obj_hdr['naxis3'] == 2:
                 real_obj = (vis_obj[:,:,0,0]+vis_obj[:,:,1,0])/2.
                 imag_obj = (vis_obj[:,:,0,1]+vis_obj[:,:,1,1])/2.
                 weight_real = vis_obj[:,:,0,2]
@@ -188,8 +189,8 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
                 real_obj = vis_obj[::2,:,0]
                 imag_obj = vis_obj[::2,:,1]
     else:
-        if obj[0].header['telescop'] == 'ALMA':
-            if obj[0].header['naxis3'] == 2:
+        if obj_hdr['telescop'] == 'ALMA':
+            if obj_hdr['naxis3'] == 2:
                 real_obj = (vis_obj[:,0,0]+vis_obj[:,1,0])/2.
                 imag_obj = (vis_obj[:,0,1]+vis_obj[:,1,1])/2.
                 weight_real = vis_obj[:,0,2]
@@ -205,16 +206,13 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
     if isgas:
         real_model = np.zeros(real_obj.shape)
         imag_model = np.zeros(imag_obj.shape)
+        hdr_model = model_fits[0].header
+        if hdr_model['cdelt3']/np.abs(hdr_model['cdelt3']) == obj_hdr['cdelt4']/np.abs(obj_hdr['cdelt4']):
+            # The model's third axis is velocity, while the data uses frequency.
+            #If the way that velocity increases with channel in the model (hdr_model['cdelt3']) is the same as how the frequency increases with channel in the data (=obj_hdr['cdelt4']) then in one of them velocity increases with channel while in the other it decreases with channel.
+            # Since the visibility calculation assumes that the channels in both data and model are matched at the same velocity, in the above scenario, the order of the model needs to be flipped to match the data. 
+            model = model[::-1,:,:] #Flip the order of the channels
         for i in range(real_obj.shape[1]):
-            ### This steps through the model and data channels in order, which assumes that they go in the same order.
-            ### But the model always increases in velocity with channel, while for the data the velocity might *decrease* with channel.
-            ### I should account for when they are flipped, but do I do that here, or with the original model?
-            ### I could rename chanmin as vel0, and make it the velocity of the first channel, which would allow for negative channel steps
-            ### But then this wouldn't be backwards compatable...
-            ### Alternatively, I could check here to see how the data behaves, and adjust the model accordingly.
-            ### That would involve fewer changes to the code
-            ### Technically you can put in a negative channel step, and treat chanmin as the maximum velocity.
-            ### In that case, here I want to check that the chanstep in the data has a different sign than the model
             vis = gdouble.sampleImage(np.flipud(model[i,:,:]).byteswap().newbyteorder(),dxy,u_obj,v_obj)
             real_model[:,i] = vis.real
             imag_model[:,i] = vis.imag
