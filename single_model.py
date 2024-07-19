@@ -310,8 +310,8 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
     'offs':[p[8],p[9]], #position offset, arcseconds
     'PA':p[10], #position angle, degrees
     'distance':101.} #distance
-    if line.lower() =='co21' or line.lower()=='co32' or line.lower()=='svco21':
-        params = [all_params['q'],all_params['Mdisk'],all_params['p'],all_params['Rin'],all_params['Rout'],all_params['Rc'],all_params['incl'],all_params['Mstar'],all_params['Xco'],all_params['vturb'],all_params['Zq0'],all_params['Tmid0'],all_params['Tatm0'],all_params['Zabund'],all_params['Rabund'],all_params['handed']]
+    #if line.lower() =='co21' or line.lower()=='co32' or line.lower()=='svco21':
+    #    params = [all_params['q'],all_params['Mdisk'],all_params['p'],all_params['Rin'],all_params['Rout'],all_params['Rc'],all_params['incl'],all_params['Mstar'],all_params['Xco'],all_params['vturb'],all_params['Zq0'],all_params['Tmid0'],all_params['Tatm0'],all_params['Zabund'],all_params['Rabund'],all_params['handed']]
     if all_params['Mdisk'] <0 or all_params['Mdisk']>all_params['Mstar'] or all_params['Rin']<0 or all_params['Rin']>all_params['Rout'] or all_params['Rout']<0 or all_params['Rc']<0 or all_params['Mstar']<0 or all_params['vturb']<0 or all_params['Zq0']<0 or all_params['Tmid0']<0 or all_params['Tmid0']>all_params['Tatm0'] or all_params['Tatm0']<0 or all_params['Zabund'][0]<0 or all_params['Zabund'][1]<0 or all_params['Zabund'][1]<all_params['Zabund'][0] or all_params['Rabund'][0]<0 or all_params['Rabund'][0]<all_params['Rin'] or all_params['Rabund'][0]>all_params['Rabund'][1] or all_params['Rabund'][1]<0 or all_params['Rabund'][1]>all_params['Rout']:
         chi = np.inf
         nu = 1
@@ -322,16 +322,34 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                     print('Bad ring parameters ',p[-3],p[-2])
                     return -np.inf
                 else:
-                    disk_structure=Disk(params,rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-3])/2.,p[-3]-params[3],p[-2]])
+                    #disk_structure=Disk(params,rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-3])/2.,p[-3]-params[3],p[-2]])
+                    disk_structure = Disk(q=all_params['q'],McoG=all_params['Mdisk'],Rc=all_params['Rc'],incl=all_params['incl'],
+                                  Mstar=all_params['Mstar'],Xco=all_params['Xco'],vturb=all_params['vturb'],
+                                  Zq0=all_params['Zq0'],Tmid0=all_params['Tmid0'],Tatm0=all_params['Tatm0'],
+                                  Rabund=all_params['Rabund'],pp=all_params['p'],Rin=all_params['Rin'],
+                                  Rout=all_params['Rout'],sigbound=all_params['Zabund'],
+                                  handed=all_params['handed'],rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-3])/2.,p[-3]-params[3],p[-2]])
             else:
                 if p[-2]<0:
                     print('Bad Ring parameters',p[-2:])
                     return -np.inf
                 else:
                 #disk_structure = Disk(params,rtg=False,exp_temp=exp_temp,ring=[p[-3],p[-2],p[-1]])
-                    disk_structure=Disk(params,rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-2])/2.,p[-2]-params[3],p[-1]])
+                    #disk_structure=Disk(params,rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-2])/2.,p[-2]-params[3],p[-1]])
+                    disk_structure = Disk(q=all_params['q'],McoG=all_params['Mdisk'],Rc=all_params['Rc'],incl=all_params['incl'],
+                                  Mstar=all_params['Mstar'],Xco=all_params['Xco'],vturb=all_params['vturb'],
+                                  Zq0=all_params['Zq0'],Tmid0=all_params['Tmid0'],Tatm0=all_params['Tatm0'],
+                                  Rabund=all_params['Rabund'],pp=all_params['p'],Rin=all_params['Rin'],
+                                  Rout=all_params['Rout'],sigbound=all_params['Zabund'],
+                                  handed=all_params['handed'],rtg=False,exp_temp=exp_temp,ring=[(params[3]+p[-2])/2.,p[-2]-params[3],p[-1]])
         else:
-            disk_structure=Disk(params,rtg=False,exp_temp=exp_temp)
+            #disk_structure=Disk(params,rtg=False,exp_temp=exp_temp)
+            disk_structure = Disk(q=all_params['q'],McoG=all_params['Mdisk'],Rc=all_params['Rc'],incl=all_params['incl'],
+                                  Mstar=all_params['Mstar'],Xco=all_params['Xco'],vturb=all_params['vturb'],
+                                  Zq0=all_params['Zq0'],Tmid0=all_params['Tmid0'],Tatm0=all_params['Tatm0'],
+                                  Rabund=all_params['Rabund'],pp=all_params['p'],Rin=all_params['Rin'],
+                                  Rout=all_params['Rout'],sigbound=all_params['Zabund'],
+                                  handed=all_params['handed'],rtg=False)
         if cleanup:
             tf = tempfile.NamedTemporaryFile()
             modfile = tf.name[-9:]
