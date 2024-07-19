@@ -156,7 +156,7 @@ def dustmodel(disk,nu):
 
 def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.0,0.0],
                 modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False,
-                L_cloud=False, tau = [0,], sigma_c = [6,], velocity_c =[2,]):
+                L_cloud=False, tau = [0,], sigma_c = [6,], velocity_c =[2,],manual_chan_params=False):
     '''Run all of the model calculations given a disk object.
     Outputs are a fits file with the model images, along with visibility files (one in miriad format and one in fits format) for this model
 
@@ -246,6 +246,11 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     :param velocity_c: (default=[0,])
     A list of central velocities, in units of km/s, in the same reference frame as the observations, for the cloud absorption.
 
+    :param manual_chan_params: (default=False)
+    Set to True if you want to manually set chanstep, nchans, chanmin. Otherwise, the code will estimate some of these for you. If flipme and obsv are set, then all three will be derived by the code. If only flipme is set, then nchans will be adjusted so that the central channel corresponds to the zero velocity channel.
+    Note: To use the time-saving capabilities of line mirroring (ie flipme=True) the channels must be chosen such that either (1) there are an odd number of channels with the central channel at zero velocity or (2) an even number of channels such that 0 velocity falls evenly between the two central channels.
+
+
 '''
 
     params = disk.get_params()
@@ -254,6 +259,18 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     for x in obs2:
         obs.append(x)
     obs.append(0.)
+
+    if flipme and (not manual_chan_params):
+        if obsv is not None:
+            print('With mirroring on, chanstep, nchans, chanmin have been reset to cover the full range of channels in the data')
+            chanstep,nchans,chanmin = calc_velo_params(obsv,vsys)
+            print('chanstep, nchans, chanmin: {:0.3f}, {:0.3f}, {:0.3f}'.format(chanstep,nchans,chanmin))
+        else:
+            print('With mirroring on, chanmin has been reset to put the line center in central channel')
+            #nchans = int(2*np.ceil(np.abs(chanmin)/np.abs(chanstep))+1)
+            chanmin = -(nchans/2.-.5)*chanstep
+            print('chanstep, nchans, chanmin: {:0.3f}, {:0.3f}, {:0.3f}'.format(chanstep,nchans,chanmin))
+            
 
     #If accounting for binning then decrease the channel width, and increase the number of channels
     if not isinstance(bin,int):
@@ -441,13 +458,12 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         chanstep*=bin
         chans = chanmin+np.arange(nchans)*chanstep
 
-
     # - make header
     if isgas:
         if obsv is not None:
-            hdr =  write_h(nchans=len(obsv),dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys)
+            hdr =  write_h(nchans=len(obsv),dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vmin=obsv[0])
         else:
-            hdr =  write_h(nchans=nchans,dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys)
+            hdr =  write_h(nchans=nchans,dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vmin=velo[0])
     else:
         im2=im
         hdr = write_h_cont(dd=distance,xnpix=xnpix,xpixscale=xpixscale)
@@ -481,7 +497,7 @@ def perform_hanning(cube):
     return test_cube
 
 
-def write_h(nchans,dd,xnpix,xpixscale,lstep,vsys):
+def write_h(nchans,dd,xnpix,xpixscale,lstep,vmin):
     'Create a header for the output image'
     hdr = fits.Header()
     cen = [xnpix/2.+.5,xnpix/2.+.5]   # - central pixel location
@@ -502,8 +518,10 @@ def write_h(nchans,dd,xnpix,xpixscale,lstep,vsys):
     hdr['CTYPE2'] = 'DEC--SIN'
     hdr['CTYPE3'] = 'VELO-LSR'
     hdr['CDELT3'] = lstep*1000    # - dv im m/s
-    hdr['CRPIX3'] = nchans/2+1.    # - 0 velocity channel
-    hdr['CRVAL3'] = vsys*1e3      # - has zero velocity
+#    hdr['CRPIX3'] = nchans/2#+1.    # - 0 velocity channel
+#    hdr['CRVAL3'] = vsys*1e3      # - has zero velocity
+    hdr['CRPIX3'] = 1
+    hdr['CRVAL3'] = vmin*1e3
     hdr['OBJECT'] = 'model'
     hdr['EPOCH'] = 2000.
     #hdr['RESTFREQ']=219.5604
@@ -781,3 +799,13 @@ def mol_dat(file='co.dat'):
     codat.close()
 
     return {'eterm':eterm,'gstat':gstat,'specref':specref,'amass':amass,'nlev':nlev,'A21':A21,'Eum':Eum}
+
+
+def calc_velo_params(obsv,vsys):
+    '''If obsv is set and flipme is True, then this function calculates the values of nchans, chanstep, and chanmin
+    so that the model fully covers the obsv values given the systemic velocity.'''
+
+    chanstep = (obsv[1]-obsv[0])
+    nchans = 2*np.ceil(np.abs(obsv-vsys).max()/np.abs(chanstep))+1
+    chanmin = -(nchans/2.-.5)*chanstep
+    return chanstep,int(nchans),chanmin
