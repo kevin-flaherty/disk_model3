@@ -275,18 +275,7 @@ class Disk:
     def set_rt_grid(self,vcs=True):
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
-        ### July 2024: A student of AMH contacted me about a 'triple-decker' sandwich behaviour, with very low flux, among edge-on debris disks
-        ### This shows up more strongly with lower disk masses. It seems to slowly appear as you increase inclination.
-        ### I tried changing Smin to 0, and increasing nz (which increases the sampling along S), and that doesn't remove the effect.
-        ### I tried taking out the notdisk portion, and that doesn't work. 
-        ## (1) Recover the coordinate transformation
-        ## (2) Look at the rotation matrix version to see if that is better
-        ## (3) Put together a radmc3d (or other code??) model of an edge-on disk as a test
-        ### (2) Rotation matrix adds 'spikes' of large flux in nearly face-on systems [Testing i=10,45,60,80]
-        ### Rotation matrix produces *much* stronger flux for i=80. This is slightly noticeable at i=60.
-        ### There is a vertical offset between the rotation matrix model and the old model for i=60...
-        ### For a protoplanetary disk, the flux per pixel is similar between the rotation matrix and the old model, but the area over which emission comes from is *very* different, with the rotation matrix producing more extended emission.
-        ### Similar behavior at i=60 for the protoplanetary disk, also with the vertical offset (the old model is shifted downwards)
+       
         #Smin = 1*Disk.AU                 # offset from zero to log scale
         #if self.thet > np.arctan(self.Rout/self.zmax):
         #    Smax = 2*self.Rout/self.sinthet

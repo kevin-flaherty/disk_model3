@@ -158,7 +158,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
                 modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False,
                 L_cloud=False, tau = [0,], sigma_c = [6,], velocity_c =[2,],manual_chan_params=False):
     '''Run all of the model calculations given a disk object.
-    Outputs are a fits file with the model images, along with visibility files (one in miriad format and one in fits format) for this model
+    The output is a fits file model image.
 
     :param disk:
     A Disk object. This contains the structure of the disk over which the radiative transfer calculation will be done.
@@ -444,7 +444,6 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
             for j in range(len(obsv2)):
                 absorption = np.exp(-tau[i]*np.exp((-(obsv2[j]-velocity_c[i])**2.)/(2*sigma_c[i]**2.)))
                 im2[:,:,j]*=absorption
-    ### Does cloud absorption work for cleaned model images, or just direct model images??
 
     if hanning:
         im2 = perform_hanning(im2)
