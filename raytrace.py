@@ -742,26 +742,40 @@ def map_flux(disk,cube3):
     '''Create a 2D map of the disk, showing the percentage of the flux coming from each r-z. It also includes contours
     showing the gas temperature. This complements flux_range, in that flux_range gives the percentiles for the distribution
     at each radius, while this function shows the full 2D map.'''
+    from scipy.ndimage import gaussian_filter
 
     cube3v = cube3-np.roll(cube3,1,axis=2) #cube3 is cumulative flux along the line of sight. This calculates the flux added at each step.
-    cube3v[cube3v<0] = 0 #some 
-    flux_collapse = cube3v.sum(axis=3)
-    flux_collapse[flux_collapse==0] = 1e-50
-    plt.figure()
-    p=plt.hist(np.log10(flux_collapse).flatten(),1000,histtype='step')
+    #cube3v[cube3v<0] = 0 #some of the marginal fluxes are zero, and this removes those points.
+    flux_collapse = (cube3v.sum(axis=3)) #collapse along the velocity axis
+    #flux_collapse = cube3v[:,:,:,1]
+    flux_collapse[flux_collapse<=0] = 1e-50
+    print(flux_collapse.shape)
+    #plt.figure()
+    #p=plt.hist(np.log10(flux_collapse).flatten(),1000,histtype='step')
     #print(flux_collapse.max(),flux_collapse.min())
-    levels = 100#np.arange(50)*(np.log10(flux_collapse.max())+50)/50-50
+    levels = np.arange(10)*(-10+50)/10-50
 
     plt.figure()
-    cs = plt.tricontourf(disk.r.flatten()/disk.AU,disk.Z.flatten()/disk.AU,np.log10(flux_collapse).flatten(),(-51,-49,-30,-25,-15,-10))
-    plt.xlim(0,500)
-    plt.ylim(-170,170)
+    #cs = plt.tricontour(disk.r.flatten()/disk.AU,disk.Z.flatten()/disk.AU,np.log10(flux_collapse).flatten(),levels) #(-51,-49,-30,-25,-15,-10)
+    diskr_filter = disk.r#gaussian_filter(disk.r,[1,1,1]) #nphi,nr,nz
+    diskz_filter = disk.Z#gaussian_filter(disk.Z,[1,1,1])
+    flux_filter = gaussian_filter(flux_collapse,[1,30,1])
+    cs = plt.tricontourf(diskr_filter.flatten()/disk.AU,diskz_filter.flatten()/disk.AU,np.log10(flux_filter).flatten(),100,
+                         norm=plt.Normalize(vmax=np.log10(flux_filter).max(),vmin=np.log10(flux_filter).max()-10,clip=True),
+                         cmap=plt.cm.Purples) #(-51,-49,-30,-25,-15,-10)
+    plt.clim(np.log10(flux_filter).max()-10,np.log10(flux_filter).max())
+    plt.xlim(0,disk.Rout/disk.AU)
+    plt.ylim(-disk.zmax/disk.AU,disk.zmax/disk.AU)
     plt.xlabel('R (au)')
     plt.ylabel('Z (au)')
-    cb = plt.colorbar(cs)
+    cb = plt.colorbar(extend='min',label='dI (erg s$^{-1}$ cm$^{-2}$ sr$^{-1}$ Hz$^{-1}$)',
+                      norm=plt.Normalize(vmax=np.log10(flux_filter).max(),vmin=np.log10(flux_filter).max()-10,clip=True))
+    #The color scaling isn't ideal. The colorbar has a lot of white space... Why doesn't extend work??
+    #Can I smooth this at all?
+    #Is there a memory leak here? Running it a number of times causes python to crash, which makes me think there is something that is being stored in memory that should not be.
 
 def mol_dat(file='co.dat'):
-    import numpy as np
+#    import numpy as np
     codat = open(file,'r')
     sdum = codat.readline()
     specref = (codat.readline())[:-1]
