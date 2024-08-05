@@ -156,7 +156,7 @@ def dustmodel(disk,nu):
 
 def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.0,0.0],
                 modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False,
-                L_cloud=False, tau = [0,], sigma_c = [6,], velocity_c =[2,],manual_chan_params=False):
+                L_cloud=False, tau = [0,], sigma_c = [6,], velocity_c =[2,],manual_chan_params=False,response_function=False):
     '''Run all of the model calculations given a disk object.
     The output is a fits file model image.
 
@@ -250,6 +250,11 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     Set to True if you want to manually set chanstep, nchans, chanmin. Otherwise, the code will estimate some of these for you. If flipme and obsv are set, then all three will be derived by the code. If only flipme is set, then nchans will be adjusted so that the central channel corresponds to the zero velocity channel.
     Note: To use the time-saving capabilities of line mirroring (ie flipme=True) the channels must be chosen such that either (1) there are an odd number of channels with the central channel at zero velocity or (2) an even number of channels such that 0 velocity falls evenly between the two central channels.
 
+    :param response_function: (default=False)
+    Account for the response function of the correlator. The response function is a sinc function of the channel number and results from the
+    Fourier transform of finite differences in time lags, and the finite total number of time lags. In this code the response function is handled
+    by calculating the flux in half channel steps, and then summing the flux in the surrounding four channels (or fewer for edge channels).
+
 
 '''
 
@@ -280,6 +285,16 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     chanstep/=bin
     chanmin -= (bin-1)*chanstep/2.
 
+    if response_function:
+        #print('Original chans: ',chanmin+np.arange(nchans)*chanstep)
+        chan_extent = 3
+        nsample = 2
+        nchans_old=nchans
+        nchans = (nchans+(nsample-1)*(nchans-1))+2*chan_extent*nsample
+        chanstep/=nsample
+        chanmin -= chanstep*chan_extent*nsample#/nsample
+        #print('New chans: ',chanmin+np.arange(nchans)*chanstep)
+
     if nchans==1:
         flipme=False
 
@@ -287,7 +302,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     dd = distance*pc    # - distance in cm
     arcsec = rad/dd     # - angular conversion factor (cm to arcsec)
     chans = chanmin+np.arange(nchans)*chanstep
-    tchans = chans.astype('|S6') # - convert channel names to string
+    #tchans = chans.astype('|S6') # - convert channel names to string
 
     # extract disk structure from Disk object
     cube=np.zeros((disk.nphi,disk.nr,nchans))
@@ -444,6 +459,27 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
             for j in range(len(obsv2)):
                 absorption = np.exp(-tau[i]*np.exp((-(obsv2[j]-velocity_c[i])**2.)/(2*sigma_c[i]**2.)))
                 im2[:,:,j]*=absorption
+
+    if response_function:
+        new_im = np.zeros((im2.shape[0],im2.shape[1],nchans_old))
+        #Here a sinc function is used for the spectral response, which is appropriate for an XF correlator. Changing this to sinc^2 would be appropriate for an FX correlator. 
+        if int(nsample) ==3:
+            #For some reason, steps of 1/3 cause arange to be inclusive of the final step, rather than exclusive.
+            print(np.arange(-chan_extent,chan_extent+.1,1./nsample),2*chan_extent*nsample+1)
+            response = np.broadcast_to(np.sinc(np.arange(-chan_extent,chan_extent+.1,1./nsample)),(im2.shape[0],im2.shape[1],2*chan_extent*nsample+1))
+        else:
+            print(np.arange(-chan_extent,chan_extent+1./nsample,1./nsample),2*chan_extent*nsample+1)
+            response = np.broadcast_to(np.sinc(np.arange(-chan_extent,chan_extent+1./nsample,1./nsample)),(im2.shape[0],im2.shape[1],2*chan_extent*nsample+1))
+        area = np.sum(np.sinc(np.arange(-chan_extent,chan_extent+1/nsample,1/nsample)))
+        for ichan in np.arange(chan_extent*nsample,nchans-chan_extent*nsample,nsample):
+            new_im[:,:,ichan//nsample-chan_extent] = np.sum(im2[:,:,ichan-chan_extent*nsample:ichan+chan_extent*nsample+1]*response,axis=2)
+        im2=new_im/area
+        chanmin += chanstep*chan_extent*nsample
+        chanstep *= nsample
+        nchans = (nchans-2*chan_extent*nsample+1)/nsample
+        chans = chanmin+np.arange(nchans_old)*chanstep
+        velo = chans+vsys
+        #print('final chans: ',chans)
 
     if hanning:
         im2 = perform_hanning(im2)
