@@ -337,7 +337,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
                 moldat = mol_dat(file='co.dat')
             elif Jnum==2 and np.abs(freq0-329.3305525)<0.1:
                 moldat = mol_dat(file='c18o.dat')
-            elif Jnum == 0 and np.abs(freq-109.7821734)<0.1:
+            elif Jnum == 0 and np.abs(freq0-109.7821734)<0.1:
                 moldat = mol_dat(file='c18o.dat')
             elif Jnum==4 and np.abs(freq0-360.16978)<0.1:
                 moldat = mol_dat(file='dcoplus.dat')
@@ -416,10 +416,10 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
                         #imt[ix,iy,:]=imt[ix,iy,::-1]
                     else:
                         imt2[ix,iy,:]=np.interp(obsv,velo,imt[ix,iy,:])
-            hdrt=write_h(nchans=len(obsv),dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys)
+            hdrt=write_h(nchans=len(obsv),dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vmin=obsv[0])
         else:
             imt2=imt
-            hdrt=write_h(nchans=nchans,dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vsys=vsys)
+            hdrt=write_h(nchans=nchans,dd=distance,xnpix=xnpix,xpixscale=xpixscale,lstep=chanstep,vmin=velo[0])
         #imt2[np.isnan(imt2)] = -170*disk.AU
         #imt2[np.isinf(imt2)] = -170*disk.AU
         imt_s=ndimage.rotate(imt2,90.+PA,reshape=False)
