@@ -55,9 +55,9 @@ class Disk:
     def __init__(self,q=-0.5,McoG=0.09,pp=1.,Ain=10.,Aout=1000.,Rc=150.,incl=51.5,
                  Mstar=2.3,Xco=1e-4,vturb=0.01,Zq0=33.9,Tmid0=19.,Tatm0=69.3,
                  handed=-1,ecc=0.,aop=0.,sigbound=[.79,1000],Rabund=[10,800],
-                 nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,line='co',ring=None):
-        
-        params=[q,McoG,pp,Ain,Aout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,handed,ecc,aop,sigbound,Rabund]
+                 nr=180,nphi=131,nz=300,zmax=170,rtg=True,vcs=True,line='co',ring=None,w_i=10, w_r0=10,w_dr=10,w_pa=10):
+        #not sure if I'm doing this right, but adding some parameters here for warp
+        params=[q,McoG,pp,Ain,Aout,Rc,incl,Mstar,Xco,vturb,Zq0,Tmid0,Tatm0,handed,ecc,aop,sigbound,Rabund,w_i,w_r0,w_dr,w_pa]
         obs=[nr,nphi,nz,zmax]
         #tb = time.clock()
         self.ring=ring
@@ -70,6 +70,485 @@ class Disk:
             self.set_line(line=line,vcs=vcs)
         #tf = time.clock()
         #print("disk init took {t} seconds".format(t=(tf-tb)))
+
+
+
+
+
+
+
+    '''this is where I'm putting functions I am addng or modifying'''
+    def w_func(self, r, type):
+        r0 = self.w_r0
+        dr = self.w_dr
+
+        '''same general function for warp & twist, just need to specify which param to use'''
+        if type == "w":
+            a = self.w_i
+
+        elif type == "pa":
+            a = self.pa
+
+        r0 = 1.0 if r0 is None else r0
+        dr = 1.0 if dr is None else dr
+        return np.radians(a / (1.0 + np.exp(-(r0 - r) / (0.1*dr))))
+    
+    def apply_matrix2d_d(p0, warp, twist, inc_, PA_):
+        x = p0[:, :, 0]
+        y = p0[:, :, 1]
+        z = p0[:, :, 2]
+
+        warp = warp[:, None]
+        print(warp.shape)
+        twist = twist[:, None]
+        print(twist.shape)
+
+        cosw = np.cos(warp)
+        sinw = np.sin(warp)
+
+        cost = np.cos(twist)
+        sint = np.sin(twist)
+
+        cosPA = np.cos(PA_)
+        sinPA = np.sin(PA_)
+
+        cosi = np.cos(inc_)
+        sini = np.sin(inc_)
+
+        xp = x*(-sinPA*sint*cosi + cosPA*cost) + y*((-sinPA*cosi*cost - sint*cosPA)*cosw + sinPA*sini*sinw) + z*(-(-sinPA*cosi*cost - sint*cosPA)*sinw + sinPA*sini*cosw)
+        yp = x*(sinPA*cost + sint*cosPA*cosi) + y*((-sinPA*sint + cosPA*cosi*cost)*cosw - sini*sinw*cosPA) + z*(-(-sinPA*sint + cosPA*cosi*cost)*sinw - sini*cosPA*cosw)
+        zp = x*sini*sint + y*(sini*cost*cosw + sinw*cosi) + z*(-sini*sinw*cost + cosi*cosw)
+
+        return np.moveaxis([xp, yp, zp], 0, 2)
+    
+    '''I think I don't need this one, can use built-in grid'''
+    '''
+    def get_grid(r_min, r_max, e, aop):
+    #def get_grid(w_i, w_r0, w_pa, w_dr, r_min, r_max, inc, pa, e, aop):
+    #def get_velocity(r_min, r_max, e, aop):
+        nac = 100#256             # - number of unique a rings
+        nzc = int(2.5*nac)#nac*5           # - number of unique z points
+        zmin = .1   #in AU
+        zmax = 10  #in AU
+            #nfc = self.nphi
+        nfc = 180
+            # - number of unique f points
+        af = np.logspace(np.log10(r_min),np.log10(r_max),nac)
+        print(af.shape)
+        zf = np.logspace(np.log10(zmin),np.log10(zmax),nzc)
+        pf = np.linspace(0,2*np.pi,nfc) #f is with refrence to semi major axis, array of phi values
+        ff = (pf - aop) % (2*np.pi) # phi values are offset by aop- refrence to sky
+        rf = np.zeros((nac,nfc))
+        for i in range(nac):
+            for j in range(nfc):
+                rf[i,j] = (af[i]*(1.-e*e))/(1.+e*np.cos(ff[j]))
+
+        idz = np.ones(nzc)
+        idf = np.ones(nfc)
+        ida = np.ones(nac)
+        pcf,acf,zcf = np.meshgrid(pf,af,zf)
+        fcf = (pcf - aop) % (2*np.pi)
+            #acf = (np.outer(af,idf))[:,:,np.newaxis]*idz
+        rcf=rf[:,:,np.newaxis]*idz
+            #print("coords init {t}".format(t=time.clock()-tst))
+
+        #return acf
+
+        # Define the warp and twist for each ring
+        #warp_i  = w_func(acf[:,:,0], w_i, w_r0, w_dr)
+        #twist_i = w_func(acf[:,:,0], w_pa, w_r0, w_dr)
+
+        #inc_obs = np.deg2rad(inc)
+        #PA_obs = np.deg2rad(pa)
+
+        return pcf, acf, zcf
+'''
+
+    '''method from Andres Zuleta et al. 2024
+    paper: ui.adsabs.harvard.edu/abs/2024A%26A...692A..56Z/abstract
+    github repo: https://github.com/andres-zuleta/eddy/tree/warp_rf'''
+
+    '''My attempt at defining an axis rotation (spatial) with warp
+    I think the best thing would be to integrate this into the set_structure function
+    goal is to define initial grid, warp it, make it 3d in a way that works with the rest of the code'''
+    
+    '''straightforward coordinate switching but i did steal it from here;
+    https://stackoverflow.com/questions/20924085/python-conversion-between-coordinates'''
+    def cart2pol(x, y):
+        rho = np.sqrt(x**2 + y**2)
+        phi = np.arctan2(y, x)
+        return(rho, phi)
+
+    def pol2cart(rho, phi):
+        x = rho * np.cos(phi)
+        y = rho * np.sin(phi)
+        return(x, y)
+
+    def define_warp(self):
+        
+        inc=0
+        pa=0
+
+        r_grid = self.acf
+        f_grid = self.pcf
+        z_grid = self.zcf
+
+        r_i = r_grid[:,0,0]  #1d array of radius values
+
+        def w_func(self, r, type):
+            r0 = self.w_r0
+            dr = self.w_dr
+
+            '''same general function for warp & twist, just need to specify which param to use'''
+            if type == "w":
+                a = self.w_i
+
+            elif type == "pa":
+                a = self.pa
+
+            r0 = 1.0 if r0 is None else r0
+            dr = 1.0 if dr is None else dr
+            return np.radians(a / (1.0 + np.exp(-(r0 - r) / (0.1*dr))))
+        
+        warp_i  = w_func(r_i, "w")
+        #print(warp_i.shape)
+        twist_i = w_func(r_i, "pa")
+
+        inc_obs = np.deg2rad(inc)
+        PA_obs = np.deg2rad(pa)
+
+        xi = r_grid[:,:,0] * np.cos(f_grid[:,:,0])
+        #print(xi.shape)
+        yi = r_grid[:,:,0] * np.sin(f_grid[:,:,0])
+
+        #needed to reshape to play nice with rotational matrix
+        points_i = np.moveaxis([xi, yi, z_grid[:,:,0]], 0, 2)
+        print(points_i.shape)
+
+
+        def apply_matrix2d_d(p0, warp, twist, inc_, PA_):
+            x = p0[:, :, 0]
+            y = p0[:, :, 1]
+            z = p0[:, :, 2]
+
+            warp = warp[:, None]
+            print(warp.shape)
+            twist = twist[:, None]
+            print(twist.shape)
+
+            cosw = np.cos(warp)
+            sinw = np.sin(warp)
+
+            cost = np.cos(twist)
+            sint = np.sin(twist)
+
+            cosPA = np.cos(PA_)
+            sinPA = np.sin(PA_)
+
+            cosi = np.cos(inc_)
+            sini = np.sin(inc_)
+
+            xp = x*(-sinPA*sint*cosi + cosPA*cost) + y*((-sinPA*cosi*cost - sint*cosPA)*cosw + sinPA*sini*sinw) + z*(-(-sinPA*cosi*cost - sint*cosPA)*sinw + sinPA*sini*cosw)
+            yp = x*(sinPA*cost + sint*cosPA*cosi) + y*((-sinPA*sint + cosPA*cosi*cost)*cosw - sini*sinw*cosPA) + z*(-(-sinPA*sint + cosPA*cosi*cost)*sinw - sini*cosPA*cosw)
+            zp = x*sini*sint + y*(sini*cost*cosw + sinw*cosi) + z*(-sini*sinw*cost + cosi*cosw)
+
+            return np.moveaxis([xp, yp, zp], 0, 2)
+        rotation = apply_matrix2d_d(points_i, warp_i, twist_i, inc_obs, PA_obs)
+        #velocity = apply_matrix2d_d(vkep_i, warp_i, twist_i, inc_obs, PA_obs)
+
+        '''rotation'''
+        return rotation   
+
+    def set_structure(self):
+        #tst=time.clock()
+        # Define the desired regular cylindrical (r,z) grid
+        nac = 500#256             # - number of unique a rings
+        #nrc = 256             # - numver of unique r points
+        amin = self.Ain       # - minimum a [AU]
+        amax = self.Aout      # - maximum a [AU]
+        e = self.ecc          # - eccentricity
+        nzc = int(2.5*nac)#nac*5           # - number of unique z points
+        zmin = .1*Disk.AU      # - minimum z [AU]
+        nfc = self.nphi       # - number of unique f points
+        af = np.logspace(np.log10(amin),np.log10(amax),nac)
+        zf = np.logspace(np.log10(zmin),np.log10(self.zmax),nzc)
+        pf = np.linspace(0,2*np.pi,self.nphi) #f is with refrence to semi major axis
+        ff = (pf - self.aop) % (2*np.pi) # phi values are offset by aop- refrence to sky
+        rf = np.zeros((nac,nfc))
+        for i in range(nac):
+            for j in range(nfc):
+                rf[i,j] = (af[i]*(1.-e*e))/(1.+e*np.cos(ff[j]))
+
+        idz = np.ones(nzc)
+        idf = np.ones(self.nphi)
+        #rcf = np.outer(rf,idz)
+        ida = np.ones(nac)
+        ##zcf = np.outer(ida,zf)
+        ##acf = af[:,np.newaxis]*np.ones(nzc)
+        #order of dimensions: a, f, z
+        pcf,acf,zcf = np.meshgrid(pf,af,zf)
+        #zcf = (np.outer(ida,idf))[:,:,np.newaxis]*zf
+        #pcf = (np.outer(ida,pf))[:,:,np.newaxis]*idz
+        fcf = (pcf - self.aop) % (2*np.pi)
+        #acf = (np.outer(af,idf))[:,:,np.newaxis]*idz
+        rcf=rf[:,:,np.newaxis]*idz
+        #print("coords init {t}".format(t=time.clock()-tst))
+
+        '''adding to Kevin's function: I want to take grid and warp it, so I need to store grid var...?'''
+        self.pcf=pcf
+        self.acf=acf
+        print("acf shape = "+str(acf.shape))
+        self.zcf=zcf
+        
+
+        '''warp code'''
+        inc=0
+        pa=0
+
+        #r_grid = self.acf
+        #f_grid = self.pcf
+        #z_grid = self.zcf
+
+        r_i = acf[:,0,0]  #1d array of radius values
+
+
+        def w_func(r, type):
+            r0 = self.w_r0
+            dr = self.w_dr
+
+            '''same general function for warp & twist, just need to specify which param to use'''
+            if type == "w":
+                a = self.w_i
+
+            elif type == "pa":
+                a = self.pa
+
+            r0 = 1.0 if r0 is None else r0
+            dr = 1.0 if dr is None else dr
+            return np.radians(a / (1.0 + np.exp(-(r0 - r) / (0.1*dr))))
+        
+
+        warp_i  = w_func(r_i, type="w")
+        #print(warp_i.shape)
+        twist_i = w_func(r_i, type="pa")
+
+        inc_obs = np.deg2rad(inc)
+        PA_obs = np.deg2rad(pa)
+
+        xi = acf[:,:,0] * np.cos(pcf[:,:,0])
+        #print(xi.shape)
+        yi = acf[:,:,0] * np.sin(pcf[:,:,0])
+
+        #needed to reshape to play nice with rotational matrix
+        points_i = np.moveaxis([xi, yi, zcf[:,:,0]], 0, 2)
+        print(points_i.shape)
+
+
+        def apply_matrix2d_d(p0, warp, twist, inc_, PA_):
+            x = p0[:, :, 0]
+            y = p0[:, :, 1]
+            z = p0[:, :, 2]
+
+            warp = warp[:, None]
+            print(warp.shape)
+            twist = twist[:, None]
+            print(twist.shape)
+
+            cosw = np.cos(warp)
+            sinw = np.sin(warp)
+
+            cost = np.cos(twist)
+            sint = np.sin(twist)
+
+            cosPA = np.cos(PA_)
+            sinPA = np.sin(PA_)
+
+            cosi = np.cos(inc_)
+            sini = np.sin(inc_)
+
+            xp = x*(-sinPA*sint*cosi + cosPA*cost) + y*((-sinPA*cosi*cost - sint*cosPA)*cosw + sinPA*sini*sinw) + z*(-(-sinPA*cosi*cost - sint*cosPA)*sinw + sinPA*sini*cosw)
+            yp = x*(sinPA*cost + sint*cosPA*cosi) + y*((-sinPA*sint + cosPA*cosi*cost)*cosw - sini*sinw*cosPA) + z*(-(-sinPA*sint + cosPA*cosi*cost)*sinw - sini*cosPA*cosw)
+            zp = x*sini*sint + y*(sini*cost*cosw + sinw*cosi) + z*(-sini*sinw*cost + cosi*cosw)
+
+            return np.moveaxis([xp, yp, zp], 0, 2)
+        rotation = apply_matrix2d_d(points_i, warp_i, twist_i, inc_obs, PA_obs)
+        #velocity = apply_matrix2d_d(vkep_i, warp_i, twist_i, inc_obs, PA_obs)
+        self.rotation = rotation
+        '''now we have warped disk, rotation is a 2d array with[:,:,0]=x coord, [:,:,1]=y coord, [:,;,2]=z coord'''
+        
+        '''now to make 3d grid:'''
+
+        z_grid = rotation[:,:,2]
+        z_full_grid = z_grid[:,:,np.newaxis] + zf
+        '''translating x &y grids back to polar coordinates'''
+
+        def cart2pol(x, y):
+            rho = np.sqrt(x**2 + y**2)
+            phi = np.arctan2(y, x)
+            return(rho, phi)
+
+        r_grid, f_grid = cart2pol(rotation[:,:,0], rotation[:,:,1])
+        self.r_grid = r_grid
+        self.f_grid = f_grid
+
+        r_full_grid = r_grid[:,:, np.newaxis]+np.ones(len(zf))
+        f_full_grid = f_grid[:,:, np.newaxis]+np.ones(len(zf))
+
+        acf=r_full_grid
+        fcf=f_full_grid
+        zcf=z_full_grid
+
+        # Interpolate dust temperature and density onto cylindrical grid
+        ###### doesnt seem to be used anywhere ######
+        #tf = 0.5*np.pi-np.arctan(zcf/rcf)  # theta value
+        #rrf = np.sqrt(rcf**2.+zcf**2)
+
+        # bundle the grid for helper functions
+        ###### add angle to grid? ######
+        grid = {'nac':nac,'nfc':nfc,'nzc':nzc,'rcf':r_full_grid,'amax':amax,'zcf':z_full_grid}#'ff':ff,'af':af,
+        self.grid=grid
+
+        #print("grid {t}".format(t=time.clock()-tst))
+        #define temperature structure
+        # use Dartois (03) type II temperature structure
+        ###### expanding to 3D should not affect this ######
+        delta = 1.                # shape parameter
+        rcf150=rcf/(150.*Disk.AU)
+        rcf150q=rcf150**self.qq
+        zq = self.zq0*Disk.AU*rcf150**1.3
+        #zq = self.zq0*Disk.AU*(rcf/(150*Disk.AU))**1.1
+        tmid = self.tmid0*rcf150q
+        tatm = self.tatm0*rcf150q
+        tempg = tatm + (tmid-tatm)*np.cos((np.pi/(2*zq))*zcf)**(2.*delta)
+        ii = zcf > zq
+        tempg[ii] = tatm[ii]
+        #Type I structure
+#        tempg = tmid*np.exp(np.log(tatm/tmid)*zcf/zq)
+        ###### this step is slow!!! ######
+        #print("temp struct {t}".format(t=time.clock()-tst)
+
+        # Calculate vertical density structure
+        # nolonger use exponential tail
+        ## Circular:
+        #Sc = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
+        #siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
+        ## Elliptical:
+        #asum = (np.power(af,-1*self.pp)).sum()
+        rp1 = np.roll(rf,-1,axis=0)
+        rm1 = np.roll(rf,1,axis=0)
+        #*** Approximations used here ***#
+        #siggas = (self.McoG*np.sqrt(1.-e*e))/((rp1-rm1)*np.pi*(1.+e*np.cos(fcf[:,:,0]))*np.power(acf[:,:,0],self.pp+1.)*asum)
+        #siggas[0,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[1,:]-rf[0,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[0]*idf,self.pp+1.)*asum)
+        #siggas[nac-1,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[nac-1,:]-rf[nac-2,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[nac-1]*idf,self.pp+1.)*asum)
+        Sc = self.McoG*(2.-self.pp)/(self.Rc*self.Rc)
+        siggas_r = Sc*(acf[:,:,0]/self.Rc)**(-1*self.pp)*np.exp(-1*(acf[:,:,0]/self.Rc)**(2-self.pp))
+        #Sc = self.McoG*(2.-self.pp)/((amax**(2-self.pp)-amin**(2-self.pp)))
+        #siggas_r = Sc*acf[:,:,0]**(-1*self.pp)
+        dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
+        siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
+
+        ## Add an extra ring
+        if self.ring is not None:
+            w = np.abs(rcf-self.Rring)<self.Wring/2.
+            if w.sum()>0:
+                tempg[w] = tempg[w]*(rcdf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)/((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.sig_enhance)
+
+
+        self.calc_hydrostatic(tempg,siggas,grid)
+
+
+        #Calculate velocity field
+        #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
+        #w = np.isnan(Omg)
+        #if w.sum()>0:
+        #    Omg[w] = np.sqrt((Disk.G*self.Mstar/(rcf[w]**2+zcf[w]**2)**1.5))
+
+        #https://pdfs.semanticscholar.org/75d1/c8533025d0a7c42d64a7fef87b0d96aba47e.pdf
+        #Lovis & Fischer 2010, Exoplanets edited by S. Seager (eq 11 assuming m2>>m1)
+        self.vel = np.sqrt(Disk.G*self.Mstar/(acf*(1-self.ecc**2.)))*(np.cos(self.aop+fcf)+self.ecc*self.cosaop)
+
+        ###### Major change: vel is linear not angular ######
+        #Omk = np.sqrt(Disk.G*self.Mstar/acf**3.)#/rcf
+        #velrot = np.zeros((3,nac,nfc,nzc))
+        #x,y velocities with refrence to semimajor axis (f)
+        #velx = (-1.*Omk*acf*np.sin(fcf))/np.sqrt(1.-self.ecc**2)
+        #vely = (Omk*acf*(self.ecc+np.cos(fcf)))/np.sqrt(1.-self.ecc**2)
+        #x,y velocities with refrence to sky (phi) only care about Vy on sky
+        #velrot[0] = self.cosaop*vel[0] - self.sinaop*vel[1]
+        #velrot = self.sinaop*velx + self.cosaop*vely
+
+        #velrot = np.sqrt((Disk.G*self.Mstar)/(acf*(1.-self.ecc**2)))*(self.sinaop*(-1.*np.sin(fcf)) + self.cosaop*(self.ecc+np.cos(fcf)))
+        #velrot2 = np.sqrt((Disk.G*self.Mstar)*(2/rcf-1/acf))
+
+
+        # Check for NANs
+        ### nolonger use Omg ###
+        #ii = np.isnan(Omg)
+        #Omg[ii] = Omk[ii]
+        ii = np.isnan(self.rho0)
+        if ii.sum() > 0:
+            self.rho0[ii] = 1e-60
+            print('Beware: removed NaNs from density (#%s)' % ii.sum())
+        ii = np.isnan(tempg)
+        if ii.sum() > 0:
+            tempg[ii] = 2.73
+            print('Beware: removed NaNs from temperature (#%s)' % ii.sum())
+
+        #print("nan chekc {t}".format(t=time.clock()-tst))
+        # find photodissociation boundary layer from top
+        zpht_up = np.zeros((nac,nfc))
+        zpht_low = np.zeros((nac,nfc))
+        sig_col = np.zeros((nac,nfc,nzc))
+        #zice = np.zeros((nac,nfc))
+        for ia in range(nac):
+            for jf in range (nfc):
+                psl = (Disk.Hnuctog/Disk.m0*self.rho0[ia,jf,:])[::-1]
+                zsl = self.zmax - (zcf[ia,jf,:])[::-1]
+                foo = (zsl-np.roll(zsl,1))*(psl+np.roll(psl,1))/2.
+                foo[0] = 0
+                nsl = foo.cumsum()
+                sig_col[ia,jf,:] = nsl[::-1]*Disk.m0/Disk.Hnuctog
+                pht = (np.abs(nsl) >= self.sigbound[0])
+                if pht.sum() == 0:
+                    zpht_up[ia,jf] = np.min(self.zmax-zsl)
+                else:
+                    zpht_up[ia,jf] = np.max(self.zmax-zsl[pht])
+                #Height of lower column density boundary
+                pht = (np.abs(nsl) >= self.sigbound[1])
+                if pht.sum() == 0:
+                    zpht_low[ia,jf] = np.min(self.zmax-zsl)
+                else:
+                    zpht_low[ia,jf] = np.max(self.zmax-zsl[pht])
+                #used to be a seperate loop
+                ###### only used for plotting
+                #foo = (tempg[ia,jf,:] < Disk.Tco)
+                #if foo.sum() > 0:
+                #    zice[ia,jf] = np.max(zcf[ia,jf,foo])
+                #else:
+                #    zice[ia,jf] = zmin
+        self.sig_col = sig_col
+        #szpht = zpht
+        #print("Zpht {t} seconds".format(t=(time.clock()-tst)))
+
+        self.af = af
+        #self.ff = ff
+        #self.rf = rf
+        self.pf = pf
+        self.nac = nac
+        self.zf = zf
+        self.nzc = nzc
+        self.tempg = tempg
+        #self.Omg0 = Omg#velrot
+        self.zpht_up = zpht_up
+        self.zpht_low = zpht_low
+        self.pcf = pcf  #only used for plotting can remove after testing
+        self.rcf = rcf  #only used for plotting can remove after testing
+
+
+
+    '''end modified/added functions'''
+
+
 
     def set_params(self,params):
         'Set the disk structure parameters'
@@ -90,6 +569,15 @@ class Disk:
         self.ecc = params[14]               # - eccentricity of disk
         self.aop = math.radians(params[15]) # - angle between los and perapsis convert to radians
         self.sigbound = [params[16][0]*Disk.sc,params[16][1]*Disk.sc] #-upper and lower column density boundaries
+
+        '''I think I need to add parameters here for warp model...'''
+        self.w_i = params[18]               # - inclination of warp
+        self.w_r0 = params[19]              # - inflection radius
+        self.w_dr = params[20]              # - how many annuli it takes for warp transition
+        self.pa = params[21]                # - position angle (how rotated the face-on disk is) of warp
+
+
+
         if len(params[17])==2:
             # - inner and outer abundance boundaries
             self.Rabund = [params[17][0]*Disk.AU,params[17][1]*Disk.AU]
@@ -112,9 +600,13 @@ class Disk:
         self.zmax = obs[3]*Disk.AU
 
 
+        '''
+    commenting this out for now so it uses my set_stucture
     def set_structure(self):
         #tst=time.clock()
+        '''
         '''Calculate the disk density and temperature structure given the specified parameters'''
+        '''
         # Define the desired regular cylindrical (r,z) grid
         nac = 500#256             # - number of unique a rings
         #nrc = 256             # - numver of unique r points
@@ -319,7 +811,8 @@ class Disk:
         if 0:
             print('plotting velocity')
             plt.clf()
-            '''
+        '''
+        '''
             plt.plot(fcf[0,:,0],velrot[0,0,:,0],label='Vx')
             plt.plot(fcf[0,:,0],velrot[1,0,:,0],label='Vy')
             plt.plot(fcf[0,:,0],np.sqrt(Disk.G*self.Mstar*((2./rcf[0,:,0])-(1./acf[0,:,0]))),"o",color="c",label="Vis Viva")
@@ -327,6 +820,7 @@ class Disk:
             plt.legend(loc = "lower right")
             plt.show()
             '''
+        '''
             plt.subplot(131,aspect="equal")
             #plt.axes().set_aspect("equal")
             plt.title("Vx/V")
@@ -394,6 +888,7 @@ class Disk:
         #print("Zpht {t} seconds".format(t=(time.clock()-tst)))
 
         '''
+        '''
 
         szpht = zpht
         #zpht = scipy.signal.medfilt(zpht,kernel_size=7) #smooth it
@@ -407,6 +902,7 @@ class Disk:
                 zice[ir] = np.max(zcf[ir,foo])
             else:
                 zice[ir] = zmin
+        '''
         '''
         self.af = af
         #self.ff = ff
@@ -441,6 +937,7 @@ class Disk:
             plt.xlabel('R (AU)',fontsize=20)
             plt.ylabel('Z (AU)',fontsize=20)
             plt.show()
+'''
 
     def set_rt_grid(self):
         #tst=time.clock()
@@ -804,6 +1301,27 @@ class Disk:
 
     def plot_structure(self,sound_speed=False,beta=None,dust=False,rmax=500,zmax=170):
         ''' Plot temperature and density structure of the disk'''
+
+
+
+        '''theo: adding some extra plots and print statements to make sure warp structure is correct'''
+        print(self.rcf.shape)
+        print(self.rotation[:,-1,0])
+
+        plt.scatter(self.rotation[:,:,0], self.rotation[:,:,1], c=self.rotation[:,:,2])
+        plt.show()
+
+
+        fig, ax = plt.subplots()
+        plt.scatter(self.rcf[:,:,0], self.pcf[:,:,0], c=self.zcf[:,:,0])
+        ax.set_xlabel("radius")
+        ax.set_ylabel("phi (radians)")
+        plt.show()
+
+        plt.scatter(self.r_grid, self.f_grid)
+        '''end changes'''
+
+
         plt.figure()
         plt.rc('axes',lw=2)
         cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoG[0,:,:])+4,np.arange(0,11,0.1))
@@ -863,3 +1381,7 @@ class Disk:
             print('power law: {:.3f}'.format(psi))
 
         return H
+
+
+
+x=Disk()
