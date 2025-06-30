@@ -165,6 +165,7 @@ def ur(grid_radius, grid_angle, ms, md, p, m, chi, beta, rin, rout, alpha, off):
 
 
 
+
 def uph(grid_radius, grid_angle, ms, md, p, m, chi, beta, rin, rout, alpha, off):
     
     '''2D azimuthal velocity perturbation [km/s] in polar coordinates
@@ -568,10 +569,10 @@ def momentoneCeta(gx, gy, ms, md, p, m, chi, beta, rin, rout, alpha, incl, off, 
 ms = 1 #star mass
 md = 0.35 #disc mass
 p = -1.5 #surface density
-ap = 45*np.pi/180 #pitch angle
+ap = 13*np.pi/180 #pitch angle
 m = 2 #azimuthal wavenumber
 beta = 5 #cool
-incl = np.pi/2.4 #inclination of the disc towards the line of sight
+incl = np.pi/2.1 #inclination of the disc towards the line of sight
 
 
 r = np.linspace(1,100,500)
@@ -607,7 +608,7 @@ m1krot = ndimage.affine_transform(m1k, matrix_y_deproject,
 spir_rot = ndimage.affine_transform(spir, matrix_y_deproject, 
                     offset=(-30,-0),order=1)
 
-
+'''
 #plot1
 fig, (ax) = plt.subplots(1,1,figsize=(8,8))
 plt.imshow(m1crot, cmap='seismic', vmin = -3, vmax = 3, origin='lower')
@@ -759,5 +760,13 @@ ax.text(187.5,-10, r'$3\pi/2$', size=17)
 ax.set_xlim(-5,403)
 ax.axis('off')
 plt.savefig('p4.png', dpi = 300)
+'''
+
+'''my additions start'''
+# I just want to get a sense of what the grid looks like and how I can use it
+
+test_ur = ur(grid_radius, grid_angle, ms, md, p, m, chi, beta,
+        rin, rout, alpha, off)
 
 
+'''my additions end'''
