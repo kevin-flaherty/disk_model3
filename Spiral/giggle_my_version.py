@@ -32,7 +32,7 @@ def omega(ms,r):
     return np.sqrt(G*ms/r**3)
 
 
-
+'''what is zeta?'''
 def zeta(r1,r,z):
     
     return np.sqrt((4*r1*r )/ ((r+r1)**2 +z**2))

@@ -606,7 +606,7 @@ m1krot = ndimage.affine_transform(m1k, matrix_y_deproject,
                     offset=(-30,-0),order=1)
 spir_rot = ndimage.affine_transform(spir, matrix_y_deproject, 
                     offset=(-30,-0),order=1)
-
+'''
 
 #plot1
 fig, (ax) = plt.subplots(1,1,figsize=(8,8))
@@ -760,4 +760,4 @@ ax.set_xlim(-5,403)
 ax.axis('off')
 plt.savefig('p4.png', dpi = 300)
 
-
+'''

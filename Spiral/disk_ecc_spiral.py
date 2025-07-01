@@ -18,6 +18,7 @@ from scipy import ndimage
 from astropy import constants as const
 from scipy.special import ellipk,ellipe
 from scipy.integrate import trapz
+import giggle_functions as giggle
 
 #testing time
 import time
@@ -73,6 +74,18 @@ class Disk:
 
     def set_params(self,params):
         'Set the disk structure parameters'
+
+        '''I will add these as real parameters at some point but just adding default values to test here'''
+        ms = 1 #star mass
+        md = 0.35 #disc mass
+        p = -.5 #surface density
+        ap = 60*np.pi/180 #pitch angle
+        m = 2 #azimuthal wavenumber
+        beta = 5 #cool
+        incl = np.pi/2.1 #inclination of the disc towards the line of sight
+        pos = 90 # rotation of spiral (degrees), starting north, cw
+
+
         self.qq = params[0]                 # - temperature index
         self.McoG = params[1]*Disk.Msun     # - gas mass
         self.pp = params[2]                 # - surface density index
@@ -138,60 +151,50 @@ class Disk:
         for i in range(nac):
             for j in range(nfc):
                 rf[i,j] = (af[i]*(1.-e*e))/(1.+e*np.cos(ff[j]))
+        
+        print("rf (1d) " +str(rf))
 
         '''1d array of z-values as ones'''
         idz = np.ones(nzc)
         idf = np.ones(self.nphi)
-        #rcf = np.outer(rf,idz)
+
         ida = np.ones(nac)
-        ##zcf = np.outer(ida,zf)
-        ##acf = af[:,np.newaxis]*np.ones(nzc)
+
         #order of dimensions: a, f, z
         '''meshgrid of z values above midplane'''
         pcf,acf,zcf = np.meshgrid(pf,af,zf)
-        #zcf = (np.outer(ida,idf))[:,:,np.newaxis]*zf
-        #pcf = (np.outer(ida,pf))[:,:,np.newaxis]*idz
+
         fcf = (pcf - self.aop) % (2*np.pi)
-        #acf = (np.outer(af,idf))[:,:,np.newaxis]*idz
+
         
         '''should be 0 grid in shape of radius, phi, z above midplane'''
         rcf=rf[:,:,np.newaxis]*idz
-        print(str(rcf.shape))
-        #print("coords init {t}".format(t=time.clock()-tst))
 
-        if 0:
-            print('plotting')
-            plt.plot((rcf*np.cos(fcf)).flatten(),(rcf*np.sin(fcf)).flatten())
-            plt.show()
-
-        # rcf[0][:] = radius at all z for first radial bin
-        # zcf[0][:] = z in first radial bin
 
         # Here introduce new z-grid (for now just leave old one in)
 
         # Interpolate dust temperature and density onto cylindrical grid
-        ###### doesnt seem to be used anywhere ######
-        #tf = 0.5*np.pi-np.arctan(zcf/rcf)  # theta values
-        #rrf = np.sqrt(rcf**2.+zcf**2)
 
         # bundle the grid for helper functions
-        ###### add angle to grid? ######
-        '''nac, nfc, nzc are resolution (int) in each dimension. rcf is 0s grid in 3d. 
+        '''nac, nfc, nzc are resolution (int) in each dimension. rcf is NOT 0s grid in 3d. 
         amax is max a (AU), zcf is z meshgrid'''
         grid = {'nac':nac,'nfc':nfc,'nzc':nzc,'rcf':rcf,'amax':amax,'zcf':zcf}#'ff':ff,'af':af,
         self.grid=grid
 
-        #print("grid {t}".format(t=time.clock()-tst))
         #define temperature structure
         # use Dartois (03) type II temperature structure
         ###### expanding to 3D should not affect this ######
         delta = 1.                # shape parameter
         rcf150=rcf/(150.*Disk.AU)
+
+        #qq is "temperature index....???"
         rcf150q=rcf150**self.qq
         
         '''# zq0 = Zq, in AU, at 150 AU (????)'''
         '''zq should be 3d and scalled by 150 AU...???'''
+        '''z has default shape of 500, 131, 1250 (so yes, 3d grid, but no negative values)'''
         zq = self.zq0*Disk.AU*rcf150**1.3
+        
         #zq = self.zq0*Disk.AU*(rcf/(150*Disk.AU))**1.1
         tmid = self.tmid0*rcf150q
         tatm = self.tatm0*rcf150q
@@ -206,7 +209,7 @@ class Disk:
         #print("temp struct {t}".format(t=time.clock()-tst)
 
         # Calculate vertical density structure
-        # nolonger use exponential tail
+
         ## Circular:
         #Sc = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
         #siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
@@ -215,13 +218,9 @@ class Disk:
         rp1 = np.roll(rf,-1,axis=0)
         rm1 = np.roll(rf,1,axis=0)
         #*** Approximations used here ***#
-        #siggas = (self.McoG*np.sqrt(1.-e*e))/((rp1-rm1)*np.pi*(1.+e*np.cos(fcf[:,:,0]))*np.power(acf[:,:,0],self.pp+1.)*asum)
-        #siggas[0,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[1,:]-rf[0,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[0]*idf,self.pp+1.)*asum)
-        #siggas[nac-1,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[nac-1,:]-rf[nac-2,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[nac-1]*idf,self.pp+1.)*asum)
         Sc = self.McoG*(2.-self.pp)/(self.Rc*self.Rc)
         siggas_r = Sc*(acf[:,:,0]/self.Rc)**(-1*self.pp)*np.exp(-1*(acf[:,:,0]/self.Rc)**(2-self.pp))
-        #Sc = self.McoG*(2.-self.pp)/((amax**(2-self.pp)-amin**(2-self.pp)))
-        #siggas_r = Sc*acf[:,:,0]**(-1*self.pp)
+
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
         siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
 
@@ -232,140 +231,39 @@ class Disk:
                 tempg[w] = tempg[w]*(rcdf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)/((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.sig_enhance)
 
 
-        #print("surface density {t}".format(t=time.clock()-tst))
-        if 0:
-            print('plotting')
-            #plt.pcolor(rcf[:,:,0]*np.cos(fcf[:,:,0]),rcf[:,:,0]*np.sin(fcf[:,:,0]),(siggas[:,:]))
-            plt.loglog(rcf[:,0,0]/self.AU,siggas[:,0],color='k',lw=2)
-            plt.loglog(rcf[:,nfc/2,0]/self.AU,siggas[:,nfc/2],color='r',lw=2)
-            plt.loglog(rcf[:,0,0]/self.AU,linrho[:,0],ls='--',lw=2,color='k')
-#            plt.loglog(rcf[:,0,0]/self.AU,siggas_r[:,0],ls=':',lw=2,color='k')
-            plt.loglog(rcf[:,nfc/2,0]/self.AU,linrho[:,nfc/2],ls='--',lw=2,color='r')
-#            plt.loglog(rcf[:,nfc/2,0]/self.AU,siggas_r[:,nfc/2],ls=':',lw=2,color='r')
-#            plt.colorbar()
-            plt.show()
-
-        if 0:
-            # check that siggas adds up to Mdisk #
-            df=ff[1]-ff[0]
-            dA = 0.5*(rp1-rm1)*df*rf
-            dA[0,:]=(rf[1,:]-rf[0,:])*rf[0,:]*df
-            dA[nac-1,:]=(rf[nac-1,:]-rf[nac-2,:])*rf[nac-1,:]*df
-            mcheck=(siggas*dA)
-            mcheck=mcheck.sum()
-            #print("sig mass check (should be 1)")
-            #print(mcheck/self.McoG)
-
-            #dsdth = (acf*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf)+e*e))/(1+e*np.cos(fcf))**2
-            dr = af-np.roll(af,1)
-            dr[0] = af[0]
-            dr = dr[:,np.newaxis]*np.ones(nfc)
-            dm = (siggas*dr*acf[:,:,0]*df)
-            #dm = (linrho*dA*dsdth*2*np.pi)
-#dm[0] = 0
-            print('second sig mass check ',dm.sum()/self.McoG)
-
 
         self.calc_hydrostatic(tempg,siggas,grid)
 
-        if 0:
-            #check if rho0 adds up to Mdisk
-            df=2*np.pi/self.nphi
-            #dz=0.5*(np.roll(zcf,-1,axis=2)-np.roll(zcf,1,axis=2))
-            #dz[:,:,0]=zcf[:,:,1]-zcf[:,:,0]
-            #dz[:,:,nzc-1]=zcf[:,:,nzc-1]-zcf[:,:,nzc-2]
-            #dr=0.5*(np.roll(rcf,-1,axis=0)-np.roll(rcf,1,axis=0))
-            #dr[0]=rcf[1]-rcf[0]
-            #dr[nac-1]=rcf[nac-1]-rcf[nac-2]
-            dz = zcf-np.roll(zcf,1,axis=2)
-            dz[:,:,0] = 0#zcf[:,:,1]
-            dr = acf-np.roll(acf,1,axis=0)
-            dr[0] = 0#rcf[1]
-            dV=acf*df*dr*dz
-            mcheck=self.rho0*dV
-            mcheck=mcheck.sum()
-            print("rho mass check (should be 1/2 as z is only one half of disk)")
-            print(mcheck/self.McoG)
-
-        #print("hydro done {t}".format(t=time.clock()-tst))
-        #Calculate radial pressure differential
-        ### nolonger use pressure term ###
-        #Pgas = Disk.kB/Disk.m0*self.rho0*tempg
-        #dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
-        #print(dPdr[:5,0,0],dPdr[200:205,0,500])
-        #dPdr = 0#(np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
-
-
-        #Calculate velocity field
-        #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
-        #w = np.isnan(Omg)
-        #if w.sum()>0:
-        #    Omg[w] = np.sqrt((Disk.G*self.Mstar/(rcf[w]**2+zcf[w]**2)**1.5))
 
         #https://pdfs.semanticscholar.org/75d1/c8533025d0a7c42d64a7fef87b0d96aba47e.pdf
         #Lovis & Fischer 2010, Exoplanets edited by S. Seager (eq 11 assuming m2>>m1)
-        self.vel = np.sqrt(Disk.G*self.Mstar/(acf*(1-self.ecc**2.)))*(np.cos(self.aop+fcf)+self.ecc*self.cosaop)
+        #self.vel = np.sqrt(Disk.G*self.Mstar/(acf*(1-self.ecc**2.)))*(np.cos(self.aop+fcf)+self.ecc*self.cosaop)
+        #print("self.vel shape " + str(self.vel.shape))
 
-        ###### Major change: vel is linear not angular ######
-        #Omk = np.sqrt(Disk.G*self.Mstar/acf**3.)#/rcf
-        #velrot = np.zeros((3,nac,nfc,nzc))
-        #x,y velocities with refrence to semimajor axis (f)
-        #velx = (-1.*Omk*acf*np.sin(fcf))/np.sqrt(1.-self.ecc**2)
-        #vely = (Omk*acf*(self.ecc+np.cos(fcf)))/np.sqrt(1.-self.ecc**2)
-        #x,y velocities with refrence to sky (phi) only care about Vy on sky
-        #velrot[0] = self.cosaop*vel[0] - self.sinaop*vel[1]
-        #velrot = self.sinaop*velx + self.cosaop*vely
-
-        #velrot = np.sqrt((Disk.G*self.Mstar)/(acf*(1.-self.ecc**2)))*(self.sinaop*(-1.*np.sin(fcf)) + self.cosaop*(self.ecc+np.cos(fcf)))
-        #velrot2 = np.sqrt((Disk.G*self.Mstar)*(2/rcf-1/acf))
-
-        if 0:
-            plt.subplot(211)
-            #plt.plot(ff/np.pi,velrot[nac/2,:,0]/1e5,'.',color='k',lw=2)
-            plt.plot(pf/np.pi,(Omg*rcf)[nac/2,:,0]/1e5,'.',lw=2)
-            #plt.plot(ff/np.pi,velrot2[nac/2,:,0]/1e5,'.',color='r')
-            plt.subplot(212)
-            #plt.plot(af/Disk.AU,velrot[:,0,0]/1e5,color='k',lw=2)
-            plt.plot(af/Disk.AU,(Omg*rcf)[:,0,0]/1e5,lw=2)
-            #plt.plot(af/Disk.AU,velrot2[:,0,0]/1e5,color='r')
-            #plt.plot(af/Disk.AU,velrot[:,nfc/2,0]/1e5,color='k',ls='--')
-            plt.plot(af/Disk.AU,(Omg*rcf)[:,nfc/2,0]/1e5,ls='--',lw=2)
-            #plt.plot(af/Disk.AU,velrot2[:,nfc/2,0]/1e5,color='r',ls='--')
+        
 
 
-        #print("Vel {t}".format(t=time.clock()-tst))
-        if 0:
-            print('plotting velocity')
-            plt.clf()
-            '''
-            plt.plot(fcf[0,:,0],velrot[0,0,:,0],label='Vx')
-            plt.plot(fcf[0,:,0],velrot[1,0,:,0],label='Vy')
-            plt.plot(fcf[0,:,0],np.sqrt(Disk.G*self.Mstar*((2./rcf[0,:,0])-(1./acf[0,:,0]))),"o",color="c",label="Vis Viva")
-            plt.plot(fcf[0,:,0],np.sqrt(velrot[0,0,:,0]**2+velrot[1,0,:,0]**2),"x",color="k",label='V')
-            plt.legend(loc = "lower right")
-            plt.show()
-            '''
-            plt.subplot(131,aspect="equal")
-            #plt.axes().set_aspect("equal")
-            plt.title("Vx/V")
-            plt.pcolor(rcf[:,:,0]*np.cos(pcf[:,:,0]),rcf[:,:,0]*np.sin(pcf[:,:,0]),velrot[0,:,:,0])#/np.sqrt(velrot[0,:,:,0]**2+velrot[1,:,:,0]**2))
-            plt.colorbar()
-            plt.subplot(132,aspect="equal")
-            #plt.axes().set_aspect("equal")
-            plt.title("Vy/V")
-            plt.pcolor(rcf[:,:,0]*np.cos(pcf[:,:,0]),rcf[:,:,0]*np.sin(pcf[:,:,0]),velrot[1,:,:,0])#/np.sqrt(velrot[0,:,:,0]**2+velrot[1,:,:,0]**2))
-            plt.colorbar()
-            plt.subplot(133,aspect="equal")
-            #plt.axes().set_aspect("equal")
-            plt.title("Log V")
-            plt.pcolor(rcf[:,:,0]*np.cos(pcf[:,:,0]),rcf[:,:,0]*np.sin(pcf[:,:,0]),np.log10(np.sqrt(velrot[0,:,:,0]**2+velrot[1,:,:,0]**2)))
-            plt.colorbar()
-            plt.show()
+        '''for spiral model, we want to make copies of the spiral extending in the z direction. Right now should
+        just be above the midplane I think. '''
 
-        # Check for NANs
-        ### nolonger use Omg ###
-        #ii = np.isnan(Omg)
-        #Omg[ii] = Omk[ii]
+        ms = 1 #star mass
+        md = 0.35 #disc mass
+        p = -.5 #surface density
+        ap = 60*np.pi/180 #pitch angle
+        m = 2 #azimuthal wavenumber
+        beta = 5 #cool
+        incl = np.pi/2.1 #inclination of the disc towards the line of sight
+        pos = 90 # rotation of spiral (degrees), starting north, cw
+
+        #self.vel = giggle.momentone(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0, 0)
+
+        self.vel_phi = giggle.uph(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0)[:,:,np.newaxis]*idz
+        print("self.vel_phi shape " + str(self.vel_phi.shape))
+        self.vel_rad = giggle.ur(rcf, pcf, ms, md, p, 2, 1, beta, amin, amax, ap, 0) 
+        print("self.vel_rad shape " + str(self.vel_rad.shape))
+
+        self.vel = np.sqrt(self.vel_phi**2 + self.vel_rad **2)
+
         ii = np.isnan(self.rho0)
         if ii.sum() > 0:
             self.rho0[ii] = 1e-60
@@ -375,7 +273,6 @@ class Disk:
             tempg[ii] = 2.73
             print('Beware: removed NaNs from temperature (#%s)' % ii.sum())
 
-        #print("nan chekc {t}".format(t=time.clock()-tst))
         # find photodissociation boundary layer from top
         zpht_up = np.zeros((nac,nfc))
         zpht_low = np.zeros((nac,nfc))
@@ -411,21 +308,6 @@ class Disk:
         #szpht = zpht
         #print("Zpht {t} seconds".format(t=(time.clock()-tst)))
 
-        '''
-
-        szpht = zpht
-        #zpht = scipy.signal.medfilt(zpht,kernel_size=7) #smooth it
-
-        # find height where CO freezes out
-        # only used for ploting
-        zice = np.zeros(nrc)
-        for ir in range(nrc):
-            foo = (tempg[ir,:] < Disk.Tco)
-            if foo.sum() > 0:
-                zice[ir] = np.max(zcf[ir,foo])
-            else:
-                zice[ir] = zmin
-        '''
         self.af = af
         #self.ff = ff
         #self.rf = rf
@@ -440,25 +322,6 @@ class Disk:
         self.pcf = pcf  #only used for plotting can remove after testing
         self.rcf = rcf  #only used for plotting can remove after testing
 
-
-
-
-        if 0:
-            plt.figure()
-            cs = plt.contour(rcf/Disk.AU,zcf/Disk.AU,np.log10(self.rho0/(Disk.mu*Disk.mh)),np.arange(0,10,1))
-            #cs2 = plt.contour(tr[0,:,:]/Disk.AU,tdiskZ[0,:,:]/Disk.AU,np.log10(self.rhoG[0,:,:])+4,np.arange(0,11,1))
-            cs2 = plt.contour(rcf/Disk.AU,zcf/Disk.AU,tempg,(30,50,70,100,120,150),colors='k')
-            #cs3 = plt.contour(tr[0,:,:]/Disk.AU,tdiskZ[0,:,:]/Disk.AU,tT[0,:,:],(20,40,60,80,100,120),colors='k',ls='--')
-            #plt.plot(tr[0,:,:]/Disk.AU,zpht[0,:,:]/Disk.AU,color='k',lw=8,ls='--')
-            plt.plot(rf/Disk.AU,zice/Disk.AU,color='b',lw=6,ls='--')
-            plt.plot(rf/Disk.AU,szpht/Disk.AU,color='k',lw=6,ls='--')
-            plt.colorbar(cs,label='log n')
-            plt.clabel(cs2,fmt='%1i')
-            #plt.clabel(cs3,fmt='%3i')
-            plt.xlim(0,500)
-            plt.xlabel('R (AU)',fontsize=20)
-            plt.ylabel('Z (AU)',fontsize=20)
-            plt.show()
 
     def set_rt_grid(self):
         #tst=time.clock()
@@ -558,7 +421,14 @@ class Disk:
         tT = ndimage.map_coordinates(self.tempg,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         #Omgx = ndimage.map_coordinates(self.Omg0[0],[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgs
         #Omg = ndimage.map_coordinates(self.Omg0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgy
+        
+        '''this is where I need to make sure velocity map is being used correctly'''
+
+        #modified to use phi and r velocities
+        tvelphi = ndimage.map_coordinates(self.vel_phi,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        tvelr = ndimage.map_coordinates(self.vel_rad,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         tvel = ndimage.map_coordinates(self.vel,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        
         #Omgz = np.zeros(np.shape(Omgy))
         #trhoG = Disk.H2tog*self.Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
         #trhoH2 = trhoG/self.Xmol #** not on cluster**
@@ -613,16 +483,6 @@ class Disk:
         #tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT)) #vturb proportional to cs
 
 
-        if 0:
-            print('plotting')
-            plt.figure(1)
-            plt.subplot(211)
-            plt.pcolor(np.log10(tr[0,:,:]),tdiskZ[0,:,:],np.log10(trhoG[0,:,:]))
-            plt.colorbar()
-            #plt.subplot(212)
-            #plt.pcolor(self.rf[:,0,np.newaxis]*np.ones(256*5),(self.zf[:,np.newaxis]*np.ones(256)).T,np.log10(self.rho0[:,0,:])) #need to expand rf and zf to same dimensions as tempg
-            #plt.colorbar()
-            plt.show()
 
         # store disk
         self.X = X
@@ -634,7 +494,30 @@ class Disk:
         #self.dBV = tdBV
         self.rhoG = trhoG
         #self.Omg = Omg#Omgy #need to combine omgx,y,z
+
+        '''changed these to include r and phi velocity values'''
+        self.vel_rad = tvelr
+        self.vel_phi = tvelphi
         self.vel = tvel
+        print("vel_rad shape " + str(self.vel_rad.shape))
+        print("vel_phi shape " + str(self.vel_rad.shape))
+
+        plt.imshow(self.vel_rad[:,:,0])
+        plt.savefig('pvel_rad_z=0.png', dpi = 300)
+        plt.show()
+        
+        plt.imshow(self.vel_rad[:,:,10])
+        plt.savefig('pvel_rad_z=10.png', dpi = 300)
+        plt.show()
+
+        plt.imshow(self.vel_phi[:,:,0])
+        plt.savefig('pvel_phi_z=0.png', dpi = 300)
+        plt.show()
+         
+        plt.imshow(self.vel_phi[:,:,10])
+        plt.savefig('pvel_phi_z=10.png', dpi = 300)
+        plt.show()
+
         self.i_notdisk = notdisk
         #self.i_xydisk = xydisk
         #self.rhoH2 = trhoH2 #*** not on cluster ***

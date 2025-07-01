@@ -973,6 +973,8 @@ class Disk:
         else:
             zsky_max = 2*(self.zmax/self.costhet)
         zsky = np.arange(self.nz)/self.nz*(-zsky_max)+zsky_max/2.
+
+        '''maybe this is where the z mirroring is happening?'''
         
         tdiskZ = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.sinthet+zsky*self.costhet
         tdiskY = (Y.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))*self.costhet-zsky*self.sinthet
@@ -1098,6 +1100,7 @@ class Disk:
         self.X = X
         self.Y = Y
         self.Z = tdiskZ
+        print()
         self.S = S
         #self.r = tr
         self.T = tT
