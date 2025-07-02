@@ -397,12 +397,18 @@ class Disk:
         yind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         tT = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
-        tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
+        tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
         vt = ndimage.map_coordinates(self.vtm,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #AD
 
         tT[notdisk]=2.73
         self.r = tr
+        #print('Negative column densities, before interpolation: ',(self.sig_col<0).sum())
         self.sig_col = tsig_col
+        #print('Negative column densities, after interpolation: ',(self.sig_col<0).sum())
+        self.sig_col[self.sig_col<0] = 0
+
+        #print('Negative temperatures before interpolation: ',(self.tempg<0).sum())
+        #print('Negative temperatures, after interpolation: ',(tT<0).sum())
 
         #Set molecular abundance
         self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
@@ -421,6 +427,9 @@ class Disk:
         trhoG = trhoH2*self.Xmol
         #trhoG[notdisk] = 0
         self.rhoH2 = trhoH2
+
+        #print('Negative densities before interpolation: ',(self.rho0<0).sum())
+        #print('Negative densities, after interpolation: ',(trhoH2<0).sum())
 
         self.add_dust_ring(self.Rin,self.Rout,0.,0.,initialize=True) #initialize dust density to 0
 
@@ -519,16 +528,45 @@ class Disk:
             add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
         if add_mol.sum()>0:
             self.Xmol[add_mol]+=abund*(self.r[add_mol]/(Rin*Disk.AU))**(alpha)
-        #add soft boundaries
-        edge1 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rout*Disk.AU)
+        
+        ## New method, using sigmoids to soften the boundaries.
+        ### This seems like a better idea, since it softens the abundance on either side of the boundary, but it doesn't actually solve the problem I want it to solve. Commenting out for now (KMF, July 2025)
+        #xvar_sig=(self.sig_col*Disk.Hnuctog/(Disk.m0*Disk.sc)-np.max([Sig0,1e-30])/10)/(np.max([Sig0,1e-30])/10)
+        #fabund_sig = 1*(1+1e8*np.exp(-xvar_sig))**(-1.)
+        #xvar_Rout = (self.r-Rout*Disk.AU)/(Rout*Disk.AU)
+        #fabund_Rout = (1-np.tanh(xvar_Rout*100.))/2.#1*(1+1e8*np.exp(-xvar_Rout))**(-1.)
+        #xvar_Rin = (self.r-Rin*Disk.AU)/(Rin*Disk.AU)
+        #fabund_Rin = (1+np.tanh(xvar_Rin*.01))/2.#1*(1+1e8*np.exp(-xvar_Rin))**(-1.)
+
+        self.Xmol *= fabund_sig*fabund_Rout*fabund_Rin
+
+        #plt.figure()
+        #plt.subplot(211)
+        #plt.loglog(xvar_sig.flatten()[::100],self.Xmol.flatten()[::100],'.k')
+        #plt.axhline(abund)
+        #plt.xlabel('Column density')
+        #plt.ylabel('Abundance modification')
+        #plt.subplot(212)
+        #plt.loglog(self.r.flatten()[::100]/Disk.AU,self.Xmol.flatten()[::100],'.k')
+        #plt.axhline(abund)
+        #plt.xlabel('Radius (au)')
+        #plt.ylabel('Abundance modification')
+        #plt.subplot(313)
+        #plt.plot(self.r.flatten()[::100]/Disk.AU,fabund_Rin.flatten()[::100],'.k')
+        #plt.xlabel('Radius (au)')
+        #plt.ylabel('Abundance modification')        
+        
+        add soft boundaries
+        edge1 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rout*Disk.AU) #Outer edge of the disk
         if edge1.sum()>0:
-            self.Xmol[edge1] += abund*(self.r[edge1]/(Rin*Disk.AU))**(alpha)*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16)
-        edge2 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r<Rin*Disk.AU)
+            self.Xmol[edge1] += abund*(self.r[edge1]/(Rin*Disk.AU))**(alpha)*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16) #16
+        edge2 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r<Rin*Disk.AU) #Inner edge of the disk
         if edge2.sum()>0:
             self.Xmol[edge2] += abund*(self.r[edge2]/(Rin*Disk.AU))**(alpha)*(1-np.exp(-(self.r[edge2]/(Rin*Disk.AU))**20.))
-        edge3 = (self.sig_col*Disk.Hnuctog/Disk.m0<Sig0*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
+        edge3 = (self.sig_col*Disk.Hnuctog/Disk.m0<Sig0*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU) # Top of the disk
         if edge3.sum()>0:
             self.Xmol[edge3] += abund*(self.r[edge3]/(Rin*Disk.AU))**(alpha)*(1-np.exp(-((self.sig_col[edge3]*Disk.Hnuctog/Disk.m0)/(Sig0*Disk.sc))**8.))
+        
         zap = (self.Xmol<0)
         if zap.sum()>0:
             self.Xmol[zap]=1e-18
@@ -623,7 +661,8 @@ class Disk:
         plt.rc('axes',lw=2)
         cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10((self.rhoG/self.Xmol)[0,:,:]),np.arange(0,11,0.1))
         #cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10((self.rhoG)[0,:,:]),np.arange(-4,7,0.1))
-        cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
+        #cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
+        cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.sig_col[0,:,:]*Disk.Hnuctog/Disk.m0),(np.log10(0.*Disk.sc),np.log10(1e-6*Disk.sc),np.log10(1e-5*Disk.sc),np.log10(1e-4*Disk.sc),np.log10(1e-3*Disk.sc),np.log10(1e-2*Disk.sc),np.log10(.1*Disk.sc)),linestyles=':',linewidths=3,colors='k')
         ax = plt.gca()
         for tick in ax.xaxis.get_major_ticks():
             tick.label1.set_fontsize(14)

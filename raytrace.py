@@ -111,7 +111,8 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     #tau = arg.cumsum(axis=2)
     tau = cumtrapz(Knu,S,axis=2,initial=0)
     arg = Knu*Snu*np.exp(-tau)
-
+    
+    
     return trapz(arg,S,axis=2),tau,cumtrapz(arg,S,axis=2,initial=0.)#tau
 
 def dustmodel(disk,nu):
