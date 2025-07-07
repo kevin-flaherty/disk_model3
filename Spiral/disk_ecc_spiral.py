@@ -18,10 +18,20 @@ from scipy import ndimage
 from astropy import constants as const
 from scipy.special import ellipk,ellipe
 from scipy.integrate import trapz
-import giggle_functions as giggle
+import giggle_my_version as giggle
 
 #testing time
 import time
+
+def cart2pol(x, y):
+    rho = np.sqrt(x**2 + y**2)
+    phi = np.arctan2(y, x)
+    return(rho, phi)
+
+def pol2cart(rho, phi):
+    x = rho * np.cos(phi)
+    y = rho * np.sin(phi)
+    return(x, y)
 
 class Disk:
     'Common class for circumstellar disk structure'
@@ -139,8 +149,11 @@ class Disk:
         # of annuli'''
         zmin = .1*Disk.AU      # - minimum z [AU]
         nfc = self.nphi       # - number of unique f points
-        af = np.logspace(np.log10(amin),np.log10(amax),nac)
-        zf = np.logspace(np.log10(zmin),np.log10(self.zmax),nzc)
+
+        '''it seems like maybe the log spacing is not playing nice with the spiral model...? 
+        swiching to linear for now'''
+        af = np.linspace(amin,amax,nac)
+        zf = np.linspace(zmin,self.zmax,nzc)
 
         #adding this to triple check z-dimension is doing what I think it is
         print("1d z-array " + str(zf))
@@ -224,6 +237,55 @@ class Disk:
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
         siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
 
+        '''adding spiral feature
+        feature is a perturbation of dsigma/sigma, so I think needs to be multiplied by and added to
+        original surface denncity profile
+        
+        The feaure should be very subtle...'''
+
+        #understanding structure of perturbed_sigma and how to use it
+        #Parameters
+        ms = 1 #star mass
+        md = 0.35 #disc mass
+        p = -.5 #surface density
+        ap = 60*np.pi/180 #pitch angle
+        m = 2 #azimuthal wavenumber
+        beta = 5 #cool
+        incl = np.pi/2.1 #inclination of the disc towards the line of sight
+        pos = 90 # rotation of spiral (degrees), starting north, cw
+
+        #1d r array
+        r = np.linspace(1,100,500)
+        #1d phi array
+        phi = np.linspace(-np.pi,np.pi,360)
+        #meshgrid but... why not use r array? And what is purpose of j? Indexing?
+        gr, gphi = np.mgrid[1:100:500j, -np.pi:np.pi:360j] #rin:rout:resolution
+        #print("gr shape " + str(gr.shape))
+        #print("gphi shape " + str(gphi.shape))
+        #print("gr" + str(gr))
+        #print("gphi" + str(gphi))
+
+
+        x_grid, y_grid = pol2cart(acf[:,:,0], pcf[:,:,0])
+        #r_cart = 
+
+        gx, gy = np.mgrid[-100:100:400j,-100:100:400j]
+        car = np.linspace(-100,100,400)
+        grid_angle = 0*gx
+        #g_r = (gx**2+gy**2)**(0.5)
+        #print(str(gr.shape)+"gr shape")
+
+        for i in range(len(car)):
+            for j in range(len(car)):
+                grid_angle[i,j] = math.atan2(car[i], car[j])
+
+        #print(str(grid_angle.shape)+"grid_angle shape")
+        #print(str(gr.shape)+"gr shape")
+        spir0 = giggle.perturbed_sigma(acf[:,:,0], pcf[:,:,0], p, 1, 100, md, beta, m, ap,0)
+        print(spir0.shape)
+        #spir1 = giggle.perturbed_sigma(g_r, grid_angle, p, 1, 100, md, beta, m, ap,30)
+        #spir2 = giggle.perturbed_sigma(g_r, grid_angle, p, 1, 100, md, beta, m, ap,90)
+
         ## Add an extra ring
         if self.ring is not None:
             w = np.abs(rcf-self.Rring)<self.Wring/2.
@@ -249,7 +311,7 @@ class Disk:
         ms = 1 #star mass
         md = 0.35 #disc mass
         p = -.5 #surface density
-        ap = 60*np.pi/180 #pitch angle
+        ap = 13*np.pi/180 #pitch angle
         m = 2 #azimuthal wavenumber
         beta = 5 #cool
         incl = np.pi/2.1 #inclination of the disc towards the line of sight
@@ -257,12 +319,29 @@ class Disk:
 
         #self.vel = giggle.momentone(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0, 0)
 
-        self.vel_phi = giggle.uph(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0)[:,:,np.newaxis]*idz
+        
+        #self.vel_phi = giggle.uph(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0)[:,:,np.newaxis]*idz
+        self.vel_phi = giggle.uph(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0)
         print("self.vel_phi shape " + str(self.vel_phi.shape))
         self.vel_rad = giggle.ur(rcf, pcf, ms, md, p, 2, 1, beta, amin, amax, ap, 0) 
         print("self.vel_rad shape " + str(self.vel_rad.shape))
 
-        self.vel = np.sqrt(self.vel_phi**2 + self.vel_rad **2)
+        #self.vel = np.sqrt(self.vel_phi**2 + self.vel_rad **2)
+        self.vel = self.vel_phi
+
+        #fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+        #scatter = ax.scatter(pcf[:,:,0], acf[:,:,0], c=self.vel_phi, label="phi velocity, face on")
+        #plt.colorbar(scatter, ax=ax)
+
+        #plt.imshow(self.vel[:,:,0])
+        
+        x_vel, y_vel = pol2cart(acf[:,:,0], pcf[:,:,0])
+        plt.scatter(x_vel, y_vel, c=self.vel)
+        plt.colorbar()
+        plt.savefig("hopefully_phi_cart.png")
+
+        
+        #plt.savefig("phi_vel.png", dpi = 300)
 
         ii = np.isnan(self.rho0)
         if ii.sum() > 0:
@@ -424,6 +503,10 @@ class Disk:
         
         '''this is where I need to make sure velocity map is being used correctly'''
 
+        plt.imshow(self.vel_phi)
+        plt.savefig('vel_phi_beforecoord.png', dpi = 300)
+        plt.show()
+
         #modified to use phi and r velocities
         tvelphi = ndimage.map_coordinates(self.vel_phi,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         tvelr = ndimage.map_coordinates(self.vel_rad,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
@@ -517,6 +600,7 @@ class Disk:
         plt.imshow(self.vel_phi[:,:,10])
         plt.savefig('pvel_phi_z=10.png', dpi = 300)
         plt.show()
+        
 
         self.i_notdisk = notdisk
         #self.i_xydisk = xydisk

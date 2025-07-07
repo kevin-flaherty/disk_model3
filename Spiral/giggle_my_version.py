@@ -123,6 +123,9 @@ def ura(ms, md, p, m, chi, beta, rin, rout, r):
     rin = inner radius of the disc [au]
     rout = outer radius of the disc [au]
     r = radius [au]'''
+
+    plt.imshow((2 * m * chi * beta**(-1/2) * q(ms, md, p, rin, rout, r)**2 * omega(ms,r) * r)[:,:,0])
+    plt.savefig("ura_output.png")
     
     return 2 * m * chi * beta**(-1/2) * q(ms, md, p, rin, rout, r)**2 * omega(ms,r) * r
 
@@ -140,6 +143,9 @@ def upha(ms, md, p, m, chi, beta, rin, rout, r):
     rin = inner radius of the disc [au]
     rout = outer radius of the disc [au]
     r = radius [au]'''
+
+    #plt.imshow((- (m * chi * beta**(-1/2)) / 2  * q(ms, md, p, rin, rout, r) * omega(ms,r) * r)[:,:,0])
+    #plt.savefig("upha_output.png")
     
     return - (m * chi * beta**(-1/2)) / 2  * q(ms, md, p, rin, rout, r) * omega(ms,r) * r
 
@@ -159,6 +165,10 @@ def ur(grid_radius, grid_angle, ms, md, p, m, chi, beta, rin, rout, alpha, off):
     rin = inner radius of the disc [au]
     rout = outer radius of the disc [au]
     alpha = pitch angle of the spiral [rad]'''
+
+    plt.imshow((- ura(ms, md, p, m, chi, beta, rin, rout, grid_radius)  * np.sin(
+        m * grid_angle + m/np.tan(alpha) * np.log(grid_radius) + off))[:,:,0])
+    plt.savefig("ur_output.png")
     
     return - ura(ms, md, p, m, chi, beta, rin, rout, grid_radius)  * np.sin(
         m * grid_angle + m/np.tan(alpha) * np.log(grid_radius) + off)
@@ -183,12 +193,16 @@ def uph(grid_radius, grid_angle, ms, md, p, m, chi, beta, rin, rout, alpha, off)
     
     x = np.linspace(rin,rout,grid_radius.shape[0])
     phase = m / np.tan(alpha)  * np.log(x)
-    an = np.linspace(-np.pi,np.pi,grid_radius.shape[1])
+    '''kevin's grid defines phi 0 to 2pi, so trying to match that here'''
+    an = np.linspace(0,2*np.pi,grid_radius.shape[1])
     bs = basicspeed(x, 0.001, md, p, rin, rout, ms)
     vec = np.zeros([grid_radius.shape[0],grid_radius.shape[1]])
     vp1 = upha(ms, md, p, m, chi, beta, rin, rout, rin)
     for i in range(grid_radius.shape[1]):
         vec[:,i] = bs[:] - vp1* x**(3/2 + p) /rin * np.sin(m*an[i] + phase[:] + off)
+
+    plt.imshow(vec)
+    plt.savefig("uph_output.png")
         
     return vec
 
@@ -562,7 +576,7 @@ def momentoneCeta(gx, gy, ms, md, p, m, chi, beta, rin, rout, alpha, incl, off, 
     return M1
 
 
-
+'''
 
 
 #Parameters
@@ -607,6 +621,8 @@ m1krot = ndimage.affine_transform(m1k, matrix_y_deproject,
                     offset=(-30,-0),order=1)
 spir_rot = ndimage.affine_transform(spir, matrix_y_deproject, 
                     offset=(-30,-0),order=1)
+
+'''
 
 '''
 #plot1
@@ -765,8 +781,10 @@ plt.savefig('p4.png', dpi = 300)
 '''my additions start'''
 # I just want to get a sense of what the grid looks like and how I can use it
 
+'''
 test_ur = ur(grid_radius, grid_angle, ms, md, p, m, chi, beta,
         rin, rout, alpha, off)
+        '''
 
 
 '''my additions end'''
