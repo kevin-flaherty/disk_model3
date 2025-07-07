@@ -20,6 +20,8 @@ from scipy.special import ellipk,ellipe
 from scipy.integrate import trapz
 import giggle_my_version as giggle
 
+from scipy.interpolate import LinearNDInterpolator as interpnd
+
 #testing time
 import time
 
@@ -235,7 +237,8 @@ class Disk:
         siggas_r = Sc*(acf[:,:,0]/self.Rc)**(-1*self.pp)*np.exp(-1*(acf[:,:,0]/self.Rc)**(2-self.pp))
 
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
-        siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
+        '''commenting this out to use my surface density profile for now'''
+        #siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
 
         '''adding spiral feature
         feature is a perturbation of dsigma/sigma, so I think needs to be multiplied by and added to
@@ -270,19 +273,40 @@ class Disk:
         #r_cart = 
 
         gx, gy = np.mgrid[-100:100:400j,-100:100:400j]
+        g_r, g_phi = cart2pol(gx, gy)
         car = np.linspace(-100,100,400)
         grid_angle = 0*gx
         #g_r = (gx**2+gy**2)**(0.5)
         #print(str(gr.shape)+"gr shape")
 
-        for i in range(len(car)):
-            for j in range(len(car)):
-                grid_angle[i,j] = math.atan2(car[i], car[j])
-
         #print(str(grid_angle.shape)+"grid_angle shape")
         #print(str(gr.shape)+"gr shape")
-        spir0 = giggle.perturbed_sigma(acf[:,:,0], pcf[:,:,0], p, 1, 100, md, beta, m, ap,0)
-        print(spir0.shape)
+        spir0 = giggle.perturbed_sigma(g_r, g_phi, p, 1, 100, md, beta, m, ap,0)
+
+        plt.imshow(spir0)
+        plt.savefig("cart_spir_surf.png")
+        plt.show()
+        
+        
+        plt.scatter(g_r, g_phi, c=spir0)
+        plt.savefig("spiral_b4_interp_surf.png")
+        plt.show()
+        
+
+
+        interp_test = interpnd((np.ravel(g_r), np.ravel(g_phi)), np.ravel(spir0))
+        siggas = interp_test(acf[:,:,0], pcf[:,:,0]-np.pi)
+
+        print("siggas " + str(siggas))
+
+        plt.imshow(siggas)
+        plt.savefig("after_interp_surf.png")
+        plt.show()
+        '''redifining siggas as my own var
+        Right now just adding one until I figure out how to actually use surface density profile'''
+        #siggas = spir0+1
+
+        #print(spir0.shape)
         #spir1 = giggle.perturbed_sigma(g_r, grid_angle, p, 1, 100, md, beta, m, ap,30)
         #spir2 = giggle.perturbed_sigma(g_r, grid_angle, p, 1, 100, md, beta, m, ap,90)
 
@@ -292,7 +316,9 @@ class Disk:
             if w.sum()>0:
                 tempg[w] = tempg[w]*(rcdf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)/((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.sig_enhance)
 
-
+        
+        
+        
 
         self.calc_hydrostatic(tempg,siggas,grid)
 
@@ -321,10 +347,29 @@ class Disk:
 
         
         #self.vel_phi = giggle.uph(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0)[:,:,np.newaxis]*idz
-        self.vel_phi = giggle.uph(rcf, pcf, ms, md, p, m, 1, beta, amin, amax, ap, 0)
-        print("self.vel_phi shape " + str(self.vel_phi.shape))
-        self.vel_rad = giggle.ur(rcf, pcf, ms, md, p, 2, 1, beta, amin, amax, ap, 0) 
-        print("self.vel_rad shape " + str(self.vel_rad.shape))
+        phi_vel = giggle.uphC(gx, gy, ms, md, p, m, 1, beta, amin, amax, ap, 0)
+        #print("self.vel_phi shape " + str(self.vel_phi.shape))
+        rad_vel = giggle.urC(gx, gy, ms, md, p, 2, 1, beta, amin, amax, ap, 0) 
+        #print("self.vel_rad shape " + str(self.vel_rad.shape))
+
+        plt.scatter(g_r, g_phi, c=self.vel_phi)
+        plt.savefig("vel_phi_polarscatter.png")
+        plt.show()
+
+        interp_test_phi = interpnd((np.ravel(g_r), np.ravel(g_phi)), np.ravel(phi_vel))
+        interp_test_rad = interpnd((np.ravel(g_r), np.ravel(g_phi)), np.ravel(rad_vel))
+
+        self.vel_phi = interp_test_phi(acf[:,:,0], pcf[:,:,0]-np.pi)
+        self.vel_rad = interp_test_rad(acf[:,:,0], pcf[:,:,0]-np.pi)
+
+        plt.imshow(self.vel_phi)
+        plt.savefig("phi_vel_afterinterp.png")
+        plt.show()
+
+        plt.imshow(self.vel_rad)
+        plt.savefig("rad_vel_afterinterp.png")
+        plt.show()
+
 
         #self.vel = np.sqrt(self.vel_phi**2 + self.vel_rad **2)
         self.vel = self.vel_phi
@@ -334,11 +379,6 @@ class Disk:
         #plt.colorbar(scatter, ax=ax)
 
         #plt.imshow(self.vel[:,:,0])
-        
-        x_vel, y_vel = pol2cart(acf[:,:,0], pcf[:,:,0])
-        plt.scatter(x_vel, y_vel, c=self.vel)
-        plt.colorbar()
-        plt.savefig("hopefully_phi_cart.png")
 
         
         #plt.savefig("phi_vel.png", dpi = 300)
