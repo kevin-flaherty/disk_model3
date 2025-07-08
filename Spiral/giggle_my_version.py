@@ -124,8 +124,8 @@ def ura(ms, md, p, m, chi, beta, rin, rout, r):
     rout = outer radius of the disc [au]
     r = radius [au]'''
 
-    plt.imshow((2 * m * chi * beta**(-1/2) * q(ms, md, p, rin, rout, r)**2 * omega(ms,r) * r)[:,:,0])
-    plt.savefig("ura_output.png")
+    #plt.imshow((2 * m * chi * beta**(-1/2) * q(ms, md, p, rin, rout, r)**2 * omega(ms,r) * r)[:,:,0])
+    #plt.savefig("ura_output.png")
     
     return 2 * m * chi * beta**(-1/2) * q(ms, md, p, rin, rout, r)**2 * omega(ms,r) * r
 

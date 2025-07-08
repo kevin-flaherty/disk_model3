@@ -73,7 +73,7 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     SignuF1 = s0*c/(nu0*np.sqrt(np.pi)) # - absorbing cross section prefactor
 
     '''adding this velocity definition for a spiral'''
-    los_vel = (disk.vel_rad*np.cos() *disk.vel_phi)
+    los_vel = (disk.vel_rad*np.cos(disk.p_grid) +disk.vel_phi*np.sin(disk.p_grid))
 
     # - Calculate source function and absorbing coefficient
     try:
@@ -83,7 +83,12 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
         dV = veloc + (handed*np.sin(thet)*disk.Omg*disk.X[:,:,np.newaxis]*np.ones(nz))
     else:
         #Eccentric models do not have disk.Omg, but use disk.vel instead
-        dV = veloc + handed*np.sin(thet)*(disk.vel)
+        '''Kevin's version'''
+        #dV = veloc + handed*np.sin(thet)*(disk.vel)
+        '''My version'''
+        dV = veloc + handed*np.sin(thet)*(los_vel)
+
+    print("dV " + str(dV))
 
 
     if wind:

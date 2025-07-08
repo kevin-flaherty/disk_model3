@@ -258,21 +258,22 @@ class Disk:
         pos = 90 # rotation of spiral (degrees), starting north, cw
 
         #1d r array
-        r = np.linspace(1,100,500)
+        #r = np.linspace(1,100,500)
         #1d phi array
-        phi = np.linspace(-np.pi,np.pi,360)
+        #phi = np.linspace(-np.pi,np.pi,360)
         #meshgrid but... why not use r array? And what is purpose of j? Indexing?
-        gr, gphi = np.mgrid[1:100:500j, -np.pi:np.pi:360j] #rin:rout:resolution
+        #gr, gphi = np.mgrid[1:100:500j, -np.pi:np.pi:360j] #rin:rout:resolution
         #print("gr shape " + str(gr.shape))
         #print("gphi shape " + str(gphi.shape))
         #print("gr" + str(gr))
         #print("gphi" + str(gphi))
 
 
-        x_grid, y_grid = pol2cart(acf[:,:,0], pcf[:,:,0])
+        #x_grid, y_grid = pol2cart(acf[:,:,0], pcf[:,:,0])
         #r_cart = 
 
-        gx, gy = np.mgrid[-100:100:400j,-100:100:400j]
+
+        gx, gy = np.mgrid[-1000:1000:100j,-1000:1000:100j]
         g_r, g_phi = cart2pol(gx, gy)
         car = np.linspace(-100,100,400)
         grid_angle = 0*gx
@@ -281,7 +282,7 @@ class Disk:
 
         #print(str(grid_angle.shape)+"grid_angle shape")
         #print(str(gr.shape)+"gr shape")
-        spir0 = giggle.perturbed_sigma(g_r, g_phi, p, 1, 100, md, beta, m, ap,0)
+        spir0 = giggle.perturbed_sigma(g_r, g_phi, p, self.Ain, self.Aout, md, beta, m, ap,0)
 
         plt.imshow(spir0)
         plt.savefig("cart_spir_surf.png")
@@ -295,7 +296,15 @@ class Disk:
 
 
         interp_test = interpnd((np.ravel(g_r), np.ravel(g_phi)), np.ravel(spir0))
-        siggas = interp_test(acf[:,:,0], pcf[:,:,0]-np.pi)
+        print("g_r " + str(g_r))
+        print("g_phi " + str(g_phi))
+        plt.scatter(np.ravel(g_r), np.ravel(g_phi), c=spir0)
+        plt.savefig("density_plotted1darray.png")
+        plt.show()
+        print("acf [:,:,0] " + str(acf[:,:,0]))
+        print("pcf[:,:,0]-np.pi " + str(pcf[:,:,0]-np.pi))
+
+        siggas = interp_test(acf[:,:,0]/Disk.AU, pcf[:,:,0]-np.pi)
 
         print("siggas " + str(siggas))
 
@@ -352,21 +361,21 @@ class Disk:
         rad_vel = giggle.urC(gx, gy, ms, md, p, 2, 1, beta, amin, amax, ap, 0) 
         #print("self.vel_rad shape " + str(self.vel_rad.shape))
 
-        plt.scatter(g_r, g_phi, c=self.vel_phi)
+        plt.scatter(g_r, g_phi, c=phi_vel)
         plt.savefig("vel_phi_polarscatter.png")
         plt.show()
 
         interp_test_phi = interpnd((np.ravel(g_r), np.ravel(g_phi)), np.ravel(phi_vel))
         interp_test_rad = interpnd((np.ravel(g_r), np.ravel(g_phi)), np.ravel(rad_vel))
 
-        self.vel_phi = interp_test_phi(acf[:,:,0], pcf[:,:,0]-np.pi)
-        self.vel_rad = interp_test_rad(acf[:,:,0], pcf[:,:,0]-np.pi)
+        self.vel_phi = interp_test_phi(acf[:,:,0]/Disk.AU, pcf[:,:,0]-np.pi)[:,:,np.newaxis]*idz
+        self.vel_rad = interp_test_rad(acf[:,:,0]/Disk.AU, pcf[:,:,0]-np.pi)[:,:,np.newaxis]*idz
 
-        plt.imshow(self.vel_phi)
+        plt.imshow(self.vel_phi[:,:,0])
         plt.savefig("phi_vel_afterinterp.png")
         plt.show()
 
-        plt.imshow(self.vel_rad)
+        plt.imshow(self.vel_rad[:,:,0])
         plt.savefig("rad_vel_afterinterp.png")
         plt.show()
 
@@ -543,7 +552,7 @@ class Disk:
         
         '''this is where I need to make sure velocity map is being used correctly'''
 
-        plt.imshow(self.vel_phi)
+        plt.imshow(self.vel_phi[:,:,0])
         plt.savefig('vel_phi_beforecoord.png', dpi = 300)
         plt.show()
 
@@ -551,6 +560,8 @@ class Disk:
         tvelphi = ndimage.map_coordinates(self.vel_phi,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         tvelr = ndimage.map_coordinates(self.vel_rad,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         tvel = ndimage.map_coordinates(self.vel,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
+
+        self.p_grid = tvelphi = ndimage.map_coordinates(self.pcf,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         
         #Omgz = np.zeros(np.shape(Omgy))
         #trhoG = Disk.H2tog*self.Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
