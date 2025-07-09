@@ -285,11 +285,13 @@ class Disk:
         spir0 = giggle.perturbed_sigma(g_r, g_phi, p, self.Ain, self.Aout, md, beta, m, ap,0)
 
         plt.imshow(spir0)
+        plt.colorbar()
         plt.savefig("cart_spir_surf.png")
         plt.show()
         
         
         plt.scatter(g_r, g_phi, c=spir0)
+        plt.colorbar()
         plt.savefig("spiral_b4_interp_surf.png")
         plt.show()
         
@@ -299,18 +301,22 @@ class Disk:
         print("g_r " + str(g_r))
         print("g_phi " + str(g_phi))
         plt.scatter(np.ravel(g_r), np.ravel(g_phi), c=spir0)
+        plt.colorbar()
         plt.savefig("density_plotted1darray.png")
         plt.show()
         print("acf [:,:,0] " + str(acf[:,:,0]))
         print("pcf[:,:,0]-np.pi " + str(pcf[:,:,0]-np.pi))
 
-        siggas = interp_test(acf[:,:,0]/Disk.AU, pcf[:,:,0]-np.pi)
+        siggas = interp_test(acf[:,:,0]/Disk.AU, pcf[:,:,0]-np.pi) + 5
 
         print("siggas " + str(siggas))
 
         plt.imshow(siggas)
+        plt.colorbar()
         plt.savefig("after_interp_surf.png")
         plt.show()
+
+
         '''redifining siggas as my own var
         Right now just adding one until I figure out how to actually use surface density profile'''
         #siggas = spir0+1
@@ -362,6 +368,7 @@ class Disk:
         #print("self.vel_rad shape " + str(self.vel_rad.shape))
 
         plt.scatter(g_r, g_phi, c=phi_vel)
+        plt.colorbar()
         plt.savefig("vel_phi_polarscatter.png")
         plt.show()
 
@@ -372,10 +379,12 @@ class Disk:
         self.vel_rad = interp_test_rad(acf[:,:,0]/Disk.AU, pcf[:,:,0]-np.pi)[:,:,np.newaxis]*idz
 
         plt.imshow(self.vel_phi[:,:,0])
+        plt.colorbar()
         plt.savefig("phi_vel_afterinterp.png")
         plt.show()
 
         plt.imshow(self.vel_rad[:,:,0])
+        plt.colorbar()
         plt.savefig("rad_vel_afterinterp.png")
         plt.show()
 
@@ -557,11 +566,24 @@ class Disk:
         plt.show()
 
         #modified to use phi and r velocities
-        tvelphi = ndimage.map_coordinates(self.vel_phi,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
-        tvelr = ndimage.map_coordinates(self.vel_rad,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        tvelphi = ndimage.map_coordinates(self.vel_phi,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)*Disk.kms
+        tvelr = ndimage.map_coordinates(self.vel_rad,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)*Disk.kms
         tvel = ndimage.map_coordinates(self.vel,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
 
-        self.p_grid = tvelphi = ndimage.map_coordinates(self.pcf,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        plt.imshow(tvelphi[:,:,0])
+        plt.colorbar()
+        plt.savefig("tvelphi.png")
+        plt.show()
+        plt.imshow(tvelr[:,:,0])
+        plt.colorbar()
+        plt.savefig("tvelr.png")
+        plt.show()
+
+        self.p_grid = ndimage.map_coordinates(self.pcf,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        plt.imshow(self.p_grid[:,:,0])
+        plt.colorbar()
+        plt.savefig("p_grid.png")
+        plt.show()
         
         #Omgz = np.zeros(np.shape(Omgy))
         #trhoG = Disk.H2tog*self.Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)

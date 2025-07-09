@@ -22,6 +22,22 @@ from scipy.integrate import trapz
 #testing time
 import time
 
+'''this is where I'm putting functions I am addng or modifying'''
+def w_func(self, r, type):
+    r0 = self.w_r0
+    dr = self.w_dr
+
+    '''same general function for warp & twist, just need to specify which param to use'''
+    if type == "w":
+        a = self.w_i
+
+    elif type == "pa":
+        a = self.pa
+
+    r0 = 1.0 if r0 is None else r0
+    dr = 1.0 if dr is None else dr
+    return np.radians(a / (1.0 + np.exp(-(r0 - r) / (0.1*dr))))
+
 class Disk:
     'Common class for circumstellar disk structure'
     #Define useful constants
@@ -77,21 +93,7 @@ class Disk:
 
 
 
-    '''this is where I'm putting functions I am addng or modifying'''
-    def w_func(self, r, type):
-        r0 = self.w_r0
-        dr = self.w_dr
-
-        '''same general function for warp & twist, just need to specify which param to use'''
-        if type == "w":
-            a = self.w_i
-
-        elif type == "pa":
-            a = self.pa
-
-        r0 = 1.0 if r0 is None else r0
-        dr = 1.0 if dr is None else dr
-        return np.radians(a / (1.0 + np.exp(-(r0 - r) / (0.1*dr))))
+    
     
     def apply_matrix2d_d(p0, warp, twist, inc_, PA_):
         x = p0[:, :, 0]

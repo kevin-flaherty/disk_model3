@@ -229,6 +229,13 @@ class Disk:
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
         siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
 
+        plt.imshow(siggas)
+        plt.colorbar()
+        plt.savefig("original_siggas.png")
+        plt.show()
+
+        print("siggas" + str(siggas))
+
         ## Add an extra ring
         if self.ring is not None:
             w = np.abs(rcf-self.Rring)<self.Wring/2.
@@ -568,6 +575,9 @@ class Disk:
         #Omg = ndimage.map_coordinates(self.Omg0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgy
         tvel = ndimage.map_coordinates(self.vel,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         
+        plt.imshow(tvel[:,:,0])
+        plt.colorbar()
+        plt.savefig("tvel.png")
         print("tvel.shape " + str(tvel.shape))
         
         #Omgz = np.zeros(np.shape(Omgy))
