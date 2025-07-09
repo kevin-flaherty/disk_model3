@@ -397,7 +397,7 @@ class Disk:
         yind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         tT = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
-        tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)###
         vt = ndimage.map_coordinates(self.vtm,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #AD
 
         tT[notdisk]=2.73
@@ -538,7 +538,7 @@ class Disk:
         #xvar_Rin = (self.r-Rin*Disk.AU)/(Rin*Disk.AU)
         #fabund_Rin = (1+np.tanh(xvar_Rin*.01))/2.#1*(1+1e8*np.exp(-xvar_Rin))**(-1.)
 
-        self.Xmol *= fabund_sig*fabund_Rout*fabund_Rin
+        #self.Xmol *= fabund_sig*fabund_Rout*fabund_Rin
 
         #plt.figure()
         #plt.subplot(211)
@@ -556,7 +556,7 @@ class Disk:
         #plt.xlabel('Radius (au)')
         #plt.ylabel('Abundance modification')        
         
-        add soft boundaries
+        #add soft boundaries
         edge1 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rout*Disk.AU) #Outer edge of the disk
         if edge1.sum()>0:
             self.Xmol[edge1] += abund*(self.r[edge1]/(Rin*Disk.AU))**(alpha)*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16) #16
