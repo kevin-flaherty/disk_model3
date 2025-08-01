@@ -9,6 +9,7 @@ from scipy.integrate import cumtrapz,trapz
 from galario import double as gdouble
 import time
 import uuid
+from vis_sample import vis_sample
 
 
 ##############################################################################
@@ -264,7 +265,86 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
     chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
     return chi
 
-def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=True):
+def compare_vis_sample(datfile='alma.n2hdata',modfile='testpy_alma_n2h',new_weight=[1,],systematic=False,isgas=True,plot_resid=False):
+    '''Calculate the raw chi-squared based on the difference between the model and data visibilities. This function uses vis_sample to perform this calculation.'''
+
+    # - Read in object visibilities
+    obj = fits.open(datfile+'.vis.fits')
+    vis_obj = (obj[0].data['data']).squeeze()
+    if isgas:
+        if obj[0].header['telescop'] == 'ALMA':
+            if obj[0].header['naxis3'] == 2:
+                real_obj = (vis_obj[:,:,0,0]+vis_obj[:,:,1,0])/2.
+                imag_obj = (vis_obj[:,:,0,1]+vis_obj[:,:,1,1])/2.
+                weight_real = vis_obj[:,:,0,2]
+                weight_imag = vis_obj[:,:,1,2]
+            else:
+                real_obj = vis_obj[::2,:,0]
+                imag_obj = vis_obj[::2,:,1]
+    else:
+        if obj[0].header['telescop'] == 'ALMA':
+            if obj[0].header['naxis3'] == 2:
+                real_obj = (vis_obj[:,0,0]+vis_obj[:,1,0])/2.
+                imag_obj = (vis_obj[:,0,1]+vis_obj[:,1,1])/2.
+                weight_real = vis_obj[:,0,2]
+                weight_imag = vis_obj[:,1,2]
+
+    obj.close()
+
+    # - Generate model visibilities
+    model_vis = vis_sample(uvfile=datfile+'.vis.fits',imagefile=modfile+'.fits',mod_interp=False)
+    real_model = model_vis.real
+    imag_model = model_vis.imag
+
+    if systematic:
+        real_model = real_model/systematic
+        imag_model = imag_model/systematic
+
+    if len(new_weight)>1:
+        weight_real = new_weight
+        weight_imag = new_weight
+
+    weight_real[real_obj==0] = 0.
+    weight_imag[imag_obj==0] = 0.
+    print('Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum()))
+
+    if plot_resid:
+        #Code to plot, and fit, residuals
+        #If errors are Gaussian, then residuals should have gaussian shape
+        #If error size is correct, residuals will have std=1
+        obj = fits.open(datfile+'.vis.fits')
+        freq0 = obj[0].header['crval4']
+        u_obj,v_obj = (obj[0].data['UU']*freq0).astype(np.float64),(obj[0].data['VV']*freq0).astype(np.float64)
+        vis_obj = (obj[0].data['data']).squeeze()
+        obj.close()
+        uv = np.sqrt(u_obj**2+v_obj**2)
+        use = (weight_real > .05) & (weight_imag>.05)
+        diff = np.concatenate((((real_model[use]-real_obj[use])*np.sqrt(weight_real[use])),((imag_model[use]-imag_obj[use])*np.sqrt(weight_imag[use]))))
+        diff = diff.flatten()
+        n,bins,patches = plt.hist(diff,10000,density=1,histtype='step',color='k',label='Data',lw=3)
+        popt,pcov = curve_fit(gaussian,bins[1:],n)
+        y=gaussian(bins,popt[0],popt[1],popt[2])
+        print('Gaussian fit parameters (amp,width,center): ',popt)
+        print('If errors are properly scaled, then width should be close to 1')
+        plt.plot(bins,y,'r--',lw=6,label='gaussuian')
+        #slight deviations from gaussian, but gaussian is still the best...
+        plt.xlabel('(Model-Data)/$\sigma$',fontweight='bold',fontsize=20)
+        ax=plt.gca()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label1.set_fontsize(20)
+            tick.label1.set_fontweight('bold')
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label1.set_fontsize(20)
+            tick.label1.set_fontweight('bold')
+
+        plt.show()
+
+
+    chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
+
+    return chi
+
+def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=False):
     '''Calculate the log-likelihood (=-0.5*chi-squared) for a given model.
 
     p (list): This is the list of variable parameters for the model. While there are many parameters for the model, this list includes the parameters that you want to adjust from one model to the next. For example, the disk gas mass is needed to generate the models, but if you don't want to adjust it, then it won't be included in p. The exact parameters included in p can be changed. By default p includes [q, log(Rc), vturb, Tatm0, Tmid0, inclination, Rabund_in, vsys, x offset, y offset, position angle]. See the all_params dictionary for a full list of model parameters, and to see which are included in p.
@@ -285,7 +365,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
 
     add_ring (default = False): DON'T USE. Has not been updated to work properly.
 
-    use_galario (default = True): Use Galario (Tazzari et al.) to calculate the visibilities from the model image, rather than using Miriad. 
+    use_galario (default = False): Use Galario (Tazzari et al.) to calculate the visibilities from the model image, rather than using vis_sample (Loomis et al.). 
 
     '''
 
@@ -390,8 +470,8 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
             disk_structure.set_line(line)
             disk_structure.add_mol_ring(all_params['Rabund'][0],all_params['Rabund'][1],.79,3.,all_params['Xco'],just_frozen=True)
             total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,freq0=345.79599,Jnum=2,imres=resolution,vsys=vsys,obsv=obsv,distance=all_params['distance'],hanning=True,PA=all_params['PA'],bin=1)
-            if not use_galario:
-                make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=345.79599)
+            #if not use_galario:
+            #    make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=345.79599)
 
 
         if systematic:
@@ -402,7 +482,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
         if use_galario:
             chi = compare_vis_galario(datfile=datfile,modfile=modfile,systematic=sys)
         else:
-            chi = compare_vis(datfile=datfile,modfile=modfile,systematic=sys)
+            chi = compare_vis_sample(datfile=datfile,modfile=modfile,systematic=sys)
 
         if cleanup:
             # Clean up files
