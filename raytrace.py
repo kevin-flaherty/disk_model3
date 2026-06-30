@@ -1,13 +1,20 @@
 #takes 182 seconds under python 3.7, while it took 188 seconds under python 2.7
 
 from scipy import ndimage
-from scipy import sign
+#from scipy import sign
 from astropy.io import fits
 import os
 #from disk import *
 import numpy as np
 from astropy import constants as const
-from scipy.integrate import cumtrapz,trapz
+try:
+    from scipy.integrate import trapz,cumtrapz
+    use_trapz=True
+    ### trapz has been deprecated after scipy v1.14.0 and replaced with trapezoid
+except ImportError:
+    from scipy.integrate import trapezoid,cumulative_trapezoid
+    use_Trapz = False
+#from scipy.integrate import cumtrapz,trapz
 import math
 import matplotlib.pyplot as plt
    #Define useful constants
@@ -84,7 +91,7 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
 
     if wind:
         # add a 'wind'
-        vwind = np.cos(thet)*0.0*disk.cs*sign(disk.Z)
+        vwind = np.cos(thet)*0.0*disk.cs*np.sign(disk.Z)
         dV += vwind
         #height = disk.calcH(verbose=False)
         #print(height.shape,disk.cs.shape,disk.Z.shape)
@@ -109,11 +116,16 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     #arg = ds*(Knu + np.roll(Knu,1,axis=2))
     #arg[:,:,0]=0.
     #tau = arg.cumsum(axis=2)
-    tau = cumtrapz(Knu,S,axis=2,initial=0)
+    if use_trapz:
+        tau = cumtrapz(Knu,S,axis=2,initial=0)
+    else:
+        tau = cumulative_trapezoid(Knu,S,axis=2,initial=0)
     arg = Knu*Snu*np.exp(-tau)
     
-    
-    return trapz(arg,S,axis=2),tau,cumtrapz(arg,S,axis=2,initial=0.)#tau
+    if use_trapz:
+        return trapz(arg,S,axis=2),tau,cumtrapz(arg,S,axis=2,initial=0.)#tau
+    else:
+        return trapezoid(arg,S,axis=2),tau,cumulative_trapezoid(arg,S,axis=2,initial=0.)
 
 def dustmodel(disk,nu):
     '''Given a disk object, calculate the radiative transfer for the dust.
@@ -148,12 +160,17 @@ def dustmodel(disk,nu):
     #arg = ds*(Knu_dust + np.roll(Knu_dust,1,axis=2))
     #arg[:,:,0]=0.
     #tau = arg.cumsum(axis=2)
-    tau = cumtrapz(Knu_dust,S,axis=2,initial=0.)
+    if use_trapz:
+        tau = cumtrapz(Knu_dust,S,axis=2,initial=0.)
+    else:
+        tau = cumulative_trapezoid(Knu_dust,S,axis=2,initial=0.)
     arg = Knu_dust*Snu*np.exp(-tau)
     arg[:,:,0] = 0.
 
-
-    return trapz(arg,S,axis=2),tau
+    if use_trapz:
+        return trapz(arg,S,axis=2),tau
+    else:
+        return trapezoid(arg,S,axis=2),tau
 
 def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.0,0.0],
                 modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=0,bin=1,hanning=False,

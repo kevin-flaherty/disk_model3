@@ -23,7 +23,13 @@ import scipy.signal
 from scipy import ndimage
 from astropy import constants as const
 from scipy.special import ellipk,ellipe
-from scipy.integrate import trapz
+try:
+    from scipy.integrate import trapz
+    use_trapz=True
+    ### trapz has been deprecated after scipy v1.14.0 and replaced with trapezoid
+except ImportError:
+    from scipy.integrate import trapezoid
+    use_Trapz = False
 
 class Disk:
 
@@ -200,7 +206,10 @@ class Disk:
                 Kk = ellipk(k)
                 Ek = ellipe(k)
                 integrand = (Kk-.25*(k**2./(1-k**2.))*(rcf/r-r/rcf+zcf**2./(r*rcf))*Ek)*np.sqrt(rcf/r)*k*siggasf
-                dphidr[i,:] = (self.G/r)*trapz(integrand,rcf,axis=0)
+                if use_trapz:
+                    dphidr[i,:] = (self.G/r)*trapz(integrand,rcf,axis=0)
+                else:
+                    dphidr[i,:] = (self.G/r)*trapezoid(integrand,rcf,axis=0)
 
         #Calculate velocity field
         if self.include_selfgrav:
@@ -605,7 +614,10 @@ class Disk:
             lnp = foo.cumsum()
 
             #normalize the density profile (note: this is just half the sigma value!)
-            dens = 0.5*sigint[ir]*np.exp(lnp)/np.trapz(np.exp(lnp),z)
+            if use_trapz:
+                dens = 0.5*sigint[ir]*np.exp(lnp)/np.trapz(np.exp(lnp),z)
+            else:
+                dens = 0.5*sigint[ir]*np.exp(lnp)/np.trapezoid(np.exp(lnp),z)
 
             #gaussian profile
             #hr = np.sqrt(2*T[0]*rf[ir]**3./grvc)
