@@ -29,7 +29,7 @@ try:
     ### trapz has been deprecated after scipy v1.14.0 and replaced with trapezoid
 except ImportError:
     from scipy.integrate import trapezoid
-    use_Trapz = False
+    use_trapz = False
 
 class Disk:
 
